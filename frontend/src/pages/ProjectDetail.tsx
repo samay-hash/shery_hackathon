@@ -1,6 +1,6 @@
 import { useEffect, useState, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ArrowLeft, Rocket, Clock, GitBranch, ExternalLink, RotateCcw, Settings, Key, Eye, EyeOff, Plus, Trash2, Copy, CheckCircle2, XCircle, Loader2, AlertCircle } from 'lucide-react';
+import { ArrowLeft, Rocket, Clock, GitBranch, ExternalLink, RotateCcw, Settings, Key, Eye, EyeOff, Plus, Trash2, CheckCircle2, XCircle, Loader2, AlertCircle } from 'lucide-react';
 import { useProjects } from '../hooks/useProjects';
 import { useDeployment } from '../hooks/useDeployment';
 import { useSocket } from '../hooks/useSocket';

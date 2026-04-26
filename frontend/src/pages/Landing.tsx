@@ -29,7 +29,7 @@ function AnimatedTerminal() {
 
   useEffect(() => {
     const timers: ReturnType<typeof setTimeout>[] = [];
-    DEMO_LOGS.forEach((log, i) => {
+    DEMO_LOGS.forEach((log) => {
       timers.push(setTimeout(() => {
         setVisibleLines((prev) => [...prev, log]);
         if (terminalRef.current) {

@@ -1,0 +1,132 @@
+/* ============================================
+   DeployX — Terminal Styles
+   ============================================ */
+
+.terminal-container {
+  position: relative;
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+}
+
+.terminal-container.live-border {
+  border: 1px solid rgba(99, 102, 241, 0.3);
+  animation: glow-pulse 3s ease-in-out infinite;
+}
+
+.terminal-container.success-border {
+  border: 1px solid rgba(16, 185, 129, 0.3);
+}
+
+.terminal-container.error-border {
+  border: 1px solid rgba(239, 68, 68, 0.3);
+}
+
+/* Line numbers */
+.terminal-line-number {
+  color: var(--text-muted);
+  font-size: 0.7rem;
+  min-width: 30px;
+  text-align: right;
+  user-select: none;
+  opacity: 0.5;
+}
+
+/* Log level prefixes */
+.log-prefix {
+  font-weight: 600;
+  min-width: 50px;
+}
+
+.log-prefix.info { color: var(--accent-cyan); }
+.log-prefix.warn { color: var(--status-queued); }
+.log-prefix.error { color: var(--status-failed); }
+.log-prefix.success { color: var(--status-live); }
+.log-prefix.debug { color: var(--text-muted); }
+
+/* Animated cursor in terminal */
+.terminal-cursor {
+  display: inline-block;
+  width: 8px;
+  height: 16px;
+  background: var(--accent-cyan);
+  animation: blink-cursor 1s step-end infinite;
+  vertical-align: text-bottom;
+  margin-left: 2px;
+}
+
+/* Terminal scrollbar */
+.terminal-body::-webkit-scrollbar { width: 4px; }
+.terminal-body::-webkit-scrollbar-track { background: transparent; }
+.terminal-body::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.06); border-radius: 2px; }
+
+/* Terminal input line */
+.terminal-input-line {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding-top: 8px;
+  border-top: 1px solid var(--border-subtle);
+  margin-top: 8px;
+}
+
+.terminal-prompt {
+  color: var(--status-live);
+  font-weight: 600;
+  user-select: none;
+}
+
+.terminal-input {
+  flex: 1;
+  background: none;
+  border: none;
+  color: var(--text-primary);
+  font-family: var(--font-mono);
+  font-size: 0.8rem;
+  outline: none;
+}
+
+/* Animated build step */
+.build-step {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 4px 0;
+}
+
+.build-step-icon {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  margin-top: 2px;
+  font-size: 0.65rem;
+}
+
+.build-step-icon.pending {
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-default);
+  color: var(--text-muted);
+}
+
+.build-step-icon.running {
+  background: var(--status-building-bg);
+  border: 1px solid rgba(99, 102, 241, 0.3);
+  color: var(--status-building);
+  animation: pulse-dot 1s infinite;
+}
+
+.build-step-icon.done {
+  background: var(--status-live-bg);
+  border: 1px solid rgba(16, 185, 129, 0.3);
+  color: var(--status-live);
+}
+
+.build-step-icon.failed {
+  background: var(--status-failed-bg);
+  border: 1px solid rgba(239, 68, 68, 0.3);
+  color: var(--status-failed);
+}

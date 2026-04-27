@@ -1,4 +1,4 @@
-import { ArrowRight, Upload, Zap, Server, Globe, X, Check, Shield, GitBranch, Cpu, Cloud } from 'lucide-react';
+import { ArrowRight, Upload, Zap, Server, Globe, X, Check, Shield, Cpu, Cloud } from 'lucide-react';
 import '../styles/landing.css';
 import { useAuth } from '../hooks/useAuth';
 

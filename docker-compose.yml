@@ -18,13 +18,14 @@ services:
     container_name: deployx-backend
     ports:
       - "3001:3001"
+      - "8000:8000"
     environment:
       - PORT=3001
       - MONGODB_URI=mongodb://mongo:27017/deployx
       - GITHUB_CLIENT_ID=${GITHUB_CLIENT_ID}
       - GITHUB_CLIENT_SECRET=${GITHUB_CLIENT_SECRET}
       - JWT_SECRET=${JWT_SECRET:-deployx_secret_2026}
-      - FRONTEND_URL=http://localhost:5173
+      - FRONTEND_URL=${FRONTEND_URL:-http://localhost:5173}
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
       - ./backend:/app

@@ -55,15 +55,16 @@ export default function ProjectDetail({ projectId }: { projectId: string }) {
   let stage = 0;
   if (deploymentStatus === 'building') {
     if (deploymentLogs.length > 0) stage = 1;
-    if (deploymentLogs.some((l: any) => l.message.includes('Cloning'))) stage = 1;
+    if (deploymentLogs.some((l: any) => l.message.includes('Cloning') || l.message.includes('cloned'))) stage = 1;
     if (deploymentLogs.some((l: any) => l.message.includes('Detected framework'))) stage = 2;
-    if (deploymentLogs.some((l: any) => l.message.includes('Generating Dockerfile'))) stage = 3;
-    if (deploymentLogs.some((l: any) => l.message.includes('Building Docker image'))) stage = 4;
-    if (deploymentLogs.some((l: any) => l.message.includes('npm install'))) stage = 5;
+    if (deploymentLogs.some((l: any) => l.message.includes('Generated optimal Dockerfile'))) stage = 3;
+    if (deploymentLogs.some((l: any) => l.message.includes('tar-fs stream') || l.message.includes('Step 1/'))) stage = 4;
+    if (deploymentLogs.some((l: any) => l.message.includes('npm install') || l.message.includes('npm ci'))) stage = 5;
     if (deploymentLogs.some((l: any) => l.message.includes('npm run build') || l.message.includes('exporting layers'))) stage = 6;
-    if (deploymentLogs.some((l: any) => l.message.includes('exporting to image') || l.message.includes('naming to docker'))) stage = 7;
+    if (deploymentLogs.some((l: any) => l.message.includes('Image built'))) stage = 7;
     if (deploymentLogs.some((l: any) => l.message.includes('Starting container'))) stage = 8;
     if (deploymentLogs.some((l: any) => l.message.includes('Container started'))) stage = 9;
+    if (deploymentLogs.some((l: any) => l.message.includes('Deployment LIVE'))) stage = 10;
   } else if (deploymentStatus === 'live') {
     stage = 10;
   }

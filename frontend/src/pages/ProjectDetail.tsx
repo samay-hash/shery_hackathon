@@ -1,5 +1,5 @@
 import { useEffect, useState, useRef } from 'react';
-import { useParams } from 'react-router-dom';
+
 import { Cpu, Box, Globe, Play, Square, ExternalLink, RefreshCw } from 'lucide-react';
 import { useDeployment } from '../hooks/useDeployment';
 import { useProjects } from '../hooks/useProjects';

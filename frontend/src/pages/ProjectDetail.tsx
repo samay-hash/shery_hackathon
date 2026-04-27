@@ -1,24 +1,19 @@
 import { useEffect, useState, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ArrowLeft, Rocket, Clock, GitBranch, ExternalLink, RotateCcw, Settings, Key, Eye, EyeOff, Plus, Trash2, CheckCircle2, XCircle, Loader2, AlertCircle } from 'lucide-react';
+import { ArrowLeft, Rocket, Clock, GitBranch, ExternalLink, RotateCcw, Settings, Key, Eye, EyeOff, Plus, Trash2, CheckCircle2, XCircle, Loader2, AlertCircle, Github, FileCode, Box, Server, Globe } from 'lucide-react';
 import { useProjects } from '../hooks/useProjects';
 import { useDeployment } from '../hooks/useDeployment';
 import { useSocket } from '../hooks/useSocket';
 import type { Deployment, DeployStatus } from '../store/appStore';
 import '../styles/project-detail.css';
 
-const pipelineSteps = ['Cloning', 'Installing', 'Building', 'Deploying', 'Live'];
-
-function getPipelineIndex(status: DeployStatus): number {
-  switch (status) {
-    case 'queued': return 0;
-    case 'building': return 2;
-    case 'deploying': return 3;
-    case 'live': return 4;
-    case 'failed': return -1;
-    default: return -1;
-  }
-}
+const pipelineNodes = [
+  { id: 'fetch', label: 'Git Fetch', icon: Github },
+  { id: 'env', label: 'Env Setup', icon: FileCode },
+  { id: 'build', label: 'Docker Build', icon: Box },
+  { id: 'run', label: 'Deploy Run', icon: Server },
+  { id: 'live', label: 'Live Proxy', icon: Globe },
+];
 
 function StatusIcon({ status }: { status: DeployStatus }) {
   switch (status) {
@@ -131,7 +126,28 @@ export default function ProjectDetail({ projectId }: { projectId: string }) {
     );
   }
 
-  const currentPipelineIdx = activeDeployment ? getPipelineIndex(activeDeployment.status) : -1;
+  let currentPipelineIdx = -1;
+  let isError = false;
+  
+  if (activeDeployment) {
+    if (activeDeployment.status === 'failed') {
+      isError = true;
+      currentPipelineIdx = 2; // Default fallback to build node
+      const logsStr = deploymentLogs.map(l => l.message).join(' ');
+      if (logsStr.includes('Clone failed')) currentPipelineIdx = 0;
+      else if (logsStr.includes('Starting container')) currentPipelineIdx = 3;
+    } else {
+      if (activeDeployment.status === 'queued') currentPipelineIdx = 0;
+      else if (activeDeployment.status === 'building') {
+        const logsStr = deploymentLogs.map(l => l.message).join(' ');
+        if (logsStr.includes('Building Docker image')) currentPipelineIdx = 2;
+        else if (logsStr.includes('Detected framework')) currentPipelineIdx = 1;
+        else currentPipelineIdx = 0;
+      }
+      else if (activeDeployment.status === 'deploying') currentPipelineIdx = 3;
+      else if (activeDeployment.status === 'live') currentPipelineIdx = 5;
+    }
+  }
 
   return (
     <div className="project-detail-page">
@@ -156,18 +172,32 @@ export default function ProjectDetail({ projectId }: { projectId: string }) {
         </button>
       </div>
 
-      {/* Pipeline */}
-      {activeDeployment && (activeDeployment.status === 'building' || activeDeployment.status === 'deploying' || activeDeployment.status === 'queued') && (
+      {/* Node Graph Pipeline */}
+      {activeDeployment && (
         <motion.div className="pipeline-wrapper" initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }}>
-          <div className="pipeline">
-            {pipelineSteps.map((step, i) => (
-              <div key={step} style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                {i > 0 && <div className={`pipeline-connector ${i <= currentPipelineIdx ? 'done' : i === currentPipelineIdx + 1 ? 'active' : ''}`} />}
-                <div className={`pipeline-step ${i < currentPipelineIdx ? 'done' : i === currentPipelineIdx ? 'active' : ''}`}>
-                  {i < currentPipelineIdx ? '✓' : ''} {step}
+          <div className="node-graph">
+            {pipelineNodes.map((node, i) => {
+              const NodeIcon = node.icon;
+              let stateClass = 'pending';
+              if (i < currentPipelineIdx) stateClass = 'done';
+              else if (i === currentPipelineIdx) stateClass = isError ? 'error' : 'active';
+
+              const edgeClass = i < currentPipelineIdx ? 'done' : (i === currentPipelineIdx && !isError) ? 'active' : 'pending';
+
+              return (
+                <div key={node.id} style={{ display: 'flex', alignItems: 'center' }}>
+                  <div className={`graph-node ${stateClass}`}>
+                    <div className="node-box">
+                      <NodeIcon size={22} />
+                    </div>
+                    <span className="node-label">{node.label}</span>
+                  </div>
+                  {i < pipelineNodes.length - 1 && (
+                    <div className={`graph-edge ${edgeClass}`} />
+                  )}
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </motion.div>
       )}

@@ -43,16 +43,148 @@
   pointer-events: none;
 }
 
-/* Pipeline */
+/* Node Graph Pipeline */
 .pipeline-wrapper {
-  margin-bottom: var(--space-lg);
-  padding: 16px;
-  background: var(--bg-card);
-  border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-lg);
+  margin-bottom: var(--space-xl);
+  padding: 40px 20px;
+  background: linear-gradient(180deg, rgba(16, 16, 20, 0.6) 0%, rgba(10, 10, 12, 0.9) 100%);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  border-radius: var(--radius-xl);
   display: flex;
   justify-content: center;
   overflow-x: auto;
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.4) inset;
+  position: relative;
+}
+
+.node-graph {
+  display: flex;
+  align-items: center;
+  position: relative;
+  gap: 0;
+}
+
+.graph-node {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  z-index: 2;
+  position: relative;
+  width: 100px;
+}
+
+.node-box {
+  width: 50px;
+  height: 50px;
+  border-radius: 12px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-subtle);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-muted);
+  transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+  position: relative;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+}
+
+.node-label {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  text-align: center;
+  transition: color 0.3s ease;
+  letter-spacing: 0.5px;
+}
+
+/* Node States */
+.graph-node.done .node-box {
+  background: rgba(0, 229, 255, 0.1);
+  border-color: var(--accent-cyan);
+  color: var(--accent-cyan);
+  box-shadow: 0 0 15px rgba(0, 229, 255, 0.2);
+}
+
+.graph-node.done .node-label {
+  color: var(--text-primary);
+}
+
+.graph-node.active .node-box {
+  background: rgba(0, 229, 255, 0.15);
+  border-color: var(--accent-cyan);
+  color: #fff;
+  box-shadow: 0 0 20px rgba(0, 229, 255, 0.4), inset 0 0 10px rgba(0, 229, 255, 0.2);
+  transform: scale(1.1);
+}
+
+.graph-node.active .node-label {
+  color: var(--accent-cyan);
+  text-shadow: 0 0 10px rgba(0, 229, 255, 0.5);
+}
+
+.graph-node.error .node-box {
+  background: rgba(255, 71, 87, 0.1);
+  border-color: var(--status-failed);
+  color: var(--status-failed);
+  box-shadow: 0 0 15px rgba(255, 71, 87, 0.3);
+}
+
+.graph-node.error .node-label {
+  color: var(--status-failed);
+}
+
+/* Edges / Connectors */
+.graph-edge {
+  width: 60px;
+  height: 2px;
+  background: var(--border-subtle);
+  position: relative;
+  z-index: 1;
+  margin-top: -28px; /* align with boxes, bypassing flex center since boxes + labels */
+}
+
+.graph-edge.done {
+  background: var(--accent-cyan);
+  box-shadow: 0 0 8px var(--accent-cyan);
+}
+
+.graph-edge.active {
+  background: rgba(0, 229, 255, 0.2);
+  overflow: hidden;
+}
+
+.graph-edge.active::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 30px;
+  height: 100%;
+  background: var(--accent-cyan);
+  box-shadow: 0 0 10px 2px var(--accent-cyan);
+  animation: flowLight 1s linear infinite;
+}
+
+@keyframes flowLight {
+  0% { transform: translateX(-30px); }
+  100% { transform: translateX(60px); }
+}
+
+/* Pulse animation for active node */
+.graph-node.active .node-box::before {
+  content: '';
+  position: absolute;
+  inset: -4px;
+  border-radius: 16px;
+  border: 1px solid var(--accent-cyan);
+  opacity: 0;
+  animation: pulseNode 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+@keyframes pulseNode {
+  0% { transform: scale(1); opacity: 0.8; }
+  100% { transform: scale(1.3); opacity: 0; }
 }
 
 /* Tabs */

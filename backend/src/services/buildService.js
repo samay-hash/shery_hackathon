@@ -54,7 +54,7 @@ function generateDockerfile(framework, project) {
 WORKDIR /app
 COPY . .
 WORKDIR /app/${rootDir}
-RUN npm ci
+RUN npm install
 RUN ${buildCmd || 'npm run build'}
 
 FROM nginx:alpine
@@ -67,7 +67,7 @@ CMD ["nginx", "-g", "daemon off;"]`;
 WORKDIR /app
 COPY . .
 WORKDIR /app/${rootDir}
-RUN npm ci
+RUN npm install
 RUN ${buildCmd || 'npm run build'}
 EXPOSE 3000
 CMD ["${startCmd || 'npm start'}"]`;
@@ -77,7 +77,7 @@ CMD ["${startCmd || 'npm start'}"]`;
 WORKDIR /app
 COPY . .
 WORKDIR /app/${rootDir}
-RUN npm ci --production
+RUN npm install --production
 EXPOSE ${framework.port}
 CMD ${JSON.stringify((startCmd || 'node index.js').split(' '))}`;
 

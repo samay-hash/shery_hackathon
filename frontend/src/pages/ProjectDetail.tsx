@@ -43,6 +43,7 @@ export default function ProjectDetail({ projectId }: { projectId: string }) {
   const { connect, joinDeploymentRoom } = useSocket();
   const [envPairs, setEnvPairs] = useState<{ key: string; value: string; visible: boolean }[]>([]);
   const [deploying, setDeploying] = useState(false);
+  const [selectedNodeId, setSelectedNodeId] = useState<string>('fetch');
   
   // Settings Form State
   const [settingsForm, setSettingsForm] = useState({
@@ -144,8 +145,7 @@ export default function ProjectDetail({ projectId }: { projectId: string }) {
     }
   }
 
-  const [selectedNodeId, setSelectedNodeId] = useState<string>('fetch');
-
+  // Auto-focus pipeline node during deployment
   useEffect(() => {
     if (activeDeployment) {
       if (['queued', 'building', 'deploying'].includes(activeDeployment.status)) {

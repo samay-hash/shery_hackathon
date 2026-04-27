@@ -3,6 +3,7 @@ const auth = require('../middleware/auth');
 const Project = require('../models/Project');
 const Deployment = require('../models/Deployment');
 const { detectFramework, startBuildPipeline } = require('../services/buildService');
+const { enqueueDeployment } = require('../services/queue');
 
 const router = express.Router();
 
@@ -154,8 +155,11 @@ router.post('/:id/deploy', auth, async (req, res) => {
       status: 'queued', triggeredBy: 'manual', envSnapshot: project.envVars,
     });
 
-    const io = req.app.get('io');
-    startBuildPipeline(project, deployment, req.user, io).catch(console.error);
+    await enqueueDeployment({
+      projectId: project._id,
+      deploymentId: deployment._id,
+      user: req.user
+    });
 
     res.status(201).json({ deployment });
   } catch (err) {

@@ -76,6 +76,10 @@ const { proxyServer } = require('./proxy');
 mongoose.connect(MONGODB_URI)
   .then(() => {
     console.log('✅ MongoDB connected');
+    
+    // Start BullMQ Worker
+    require('./workers/deployWorker');
+    
     server.listen(PORT, () => {
       console.log(`🚀 DeployX API Backend running on http://localhost:${PORT}`);
     });

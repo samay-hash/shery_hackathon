@@ -44,10 +44,11 @@ Here are the error logs:
 ${errorLines}
 \`\`\`
 Analyze the error and provide:
-1. Root Cause (1-2 sentences)
-2. Fix Steps (numbered list, max 4 steps)
-3. Confidence (high/medium/low)
-Respond in JSON format: {"rootCause": "...", "fixSteps": ["step1", "step2"], "confidence": "high"}`;
+1. Root Cause
+2. Fix Steps
+3. If it's a code or config error (e.g., missing script in package.json, bad import), provide a file patch. Provide the EXACT search text and the EXACT replacement text.
+Respond in JSON format: {"rootCause": "...", "fixSteps": ["step1", "step2"], "patch": {"file": "package.json", "search": "...", "replace": "..."}}
+If no patch is possible, omit the patch field.`;
 
     const result = await model.generateContent(prompt);
     const text = result.response.text();

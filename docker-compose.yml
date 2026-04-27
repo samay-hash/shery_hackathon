@@ -13,6 +13,18 @@ services:
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
       - backend-builds:/tmp/deployx-builds
+    depends_on:
+      - redis
+    restart: unless-stopped
+    networks:
+      - deployx-net
+
+  # Redis for BullMQ Queue
+  redis:
+    image: redis:alpine
+    container_name: deployx-redis
+    ports:
+      - "6379:6379"
     restart: unless-stopped
     networks:
       - deployx-net

@@ -1,33 +1,28 @@
 const path = require('path');
 const fs = require('fs');
-const { execSync, spawn } = require('child_process');
+const { execSync } = require('child_process');
+const Docker = require('dockerode');
+const tar = require('tar-fs');
 const Deployment = require('../models/Deployment');
 const Project = require('../models/Project');
 const { emitDeployLog, emitDeployStatus } = require('../socket/socketHandler');
 const { analyzeBuildError } = require('./aiService');
 
 const BUILDS_DIR = path.join(__dirname, '..', '..', 'builds');
-const DOCKER_AVAILABLE = checkDocker();
+const docker = new Docker({ socketPath: '/var/run/docker.sock' });
 
-function checkDocker() {
-  try { execSync('docker --version', { stdio: 'pipe' }); return true; }
-  catch { return false; }
-}
-
-// Emit a log and save to DB
 async function log(io, deployment, level, message, source = 'build') {
   const entry = { timestamp: new Date(), level, message, source };
-  emitDeployLog(io, deployment._id.toString(), entry);
+  if (io) emitDeployLog(io, deployment._id.toString(), entry);
   await Deployment.findByIdAndUpdate(deployment._id, { $push: { logs: entry } });
 }
 
-// Detect framework from package.json
+// ... detectFramework ...
 function detectFramework(repoPath, rootDir = '.') {
   try {
     let pkgPath = path.join(repoPath, rootDir, 'package.json');
     let detectedRoot = rootDir;
 
-    // Hackathon Magic: Monorepo Auto-Detection
     if (!fs.existsSync(pkgPath) && rootDir === '.') {
       if (fs.existsSync(path.join(repoPath, 'frontend', 'package.json'))) {
         detectedRoot = 'frontend';
@@ -55,7 +50,6 @@ function detectFramework(repoPath, rootDir = '.') {
   }
 }
 
-// Generate Dockerfile based on framework
 function generateDockerfile(framework, project) {
   const buildCmd = project.buildCommand || framework.build;
   const startCmd = project.startCommand || framework.start;
@@ -112,201 +106,163 @@ CMD ["node", "index.js"]`;
   }
 }
 
-// Find an available port in range
 let nextPort = 4001;
 function getNextPort() {
   return nextPort++;
 }
 
-// Stop and remove old containers for this project
 async function cleanupOldContainers(projectName, io, deployment) {
-  if (!DOCKER_AVAILABLE) return;
   try {
     const prefix = `deployx-${projectName.toLowerCase().replace(/[^a-z0-9-]/g, '-')}`;
-    const running = execSync(`docker ps -a --filter name=${prefix} --format "{{.Names}}"`, { stdio: 'pipe' }).toString().trim();
-    if (running) {
-      const containers = running.split('\n').filter(Boolean);
-      for (const c of containers) {
-        try {
-          execSync(`docker stop ${c} && docker rm ${c}`, { stdio: 'pipe', timeout: 15000 });
-          await log(io, deployment, 'info', `♻ Cleaned up old container: ${c}`);
-        } catch { /* ignore */ }
+    const containers = await docker.listContainers({ all: true });
+    for (const c of containers) {
+      if (c.Names.some(n => n.includes(prefix))) {
+        const container = docker.getContainer(c.Id);
+        if (c.State === 'running') await container.stop();
+        await container.remove();
+        await log(io, deployment, 'info', `♻ Cleaned up old container: ${c.Names[0]}`);
       }
     }
-  } catch { /* no old containers */ }
+  } catch (err) {
+    console.error('Cleanup error:', err.message);
+  }
 }
 
-// Main build pipeline
-async function startBuildPipeline(project, deployment, user, io) {
+// 🌟 AI Self-Healing Auto-Patch Logic
+async function attemptSelfHealing(errorLogs, buildDir, project, deployment, io) {
+  await log(io, deployment, 'warn', '🧠 AI Engine analyzing failure and attempting self-healing...');
+  try {
+    const analysis = await analyzeBuildError(errorLogs, project.framework, project.name);
+    await log(io, deployment, 'info', `🧠 AI Diagnosis: ${analysis.rootCause}`);
+    
+    // Check if AI provided a patch payload (Assuming analyzeBuildError is updated to return `patch`)
+    if (analysis.patch && analysis.patch.file && analysis.patch.replace) {
+      const filePath = path.join(buildDir, analysis.patch.file);
+      if (fs.existsSync(filePath)) {
+        let content = fs.readFileSync(filePath, 'utf8');
+        content = content.replace(analysis.patch.search || '', analysis.patch.replace);
+        fs.writeFileSync(filePath, content);
+        await log(io, deployment, 'success', `✨ AI Auto-Patched file: ${analysis.patch.file}`);
+        return true; // Patch applied
+      }
+    }
+    return false; // Could not heal
+  } catch (e) {
+    return false;
+  }
+}
+
+// Main build pipeline with Dockerode & Tar-FS Streaming
+async function startBuildPipeline(project, deployment, user, io, retryCount = 0) {
   const startTime = Date.now();
   const deployId = deployment._id.toString();
   const buildDir = path.join(BUILDS_DIR, deployId);
 
   try {
-    // 0. Cleanup old containers for this project
-    await cleanupOldContainers(project.name, io, deployment);
+    if (retryCount === 0) {
+      await cleanupOldContainers(project.name, io, deployment);
+      await Deployment.findByIdAndUpdate(deployment._id, { status: 'building' });
+      if (io) emitDeployStatus(io, deployId, 'building');
 
-    // 1. QUEUED → BUILDING
-    await Deployment.findByIdAndUpdate(deployment._id, { status: 'building' });
-    emitDeployStatus(io, deployId, 'building');
-
-    // Create builds directory
-    fs.mkdirSync(buildDir, { recursive: true });
-
-    // 2. Clone repo
-    await log(io, deployment, 'info', '▸ Cloning repository...');
-    await log(io, deployment, 'info', `▸ git clone ${project.repoUrl}`);
-
-    try {
+      fs.mkdirSync(buildDir, { recursive: true });
+      await log(io, deployment, 'info', '▸ Cloning repository...');
       const cloneUrl = project.repoUrl.replace('https://', `https://${user.accessToken}@`);
-      execSync(`git clone --depth 1 --branch ${project.branch} ${cloneUrl} ${buildDir}`, {
-        stdio: 'pipe', timeout: 60000,
-      });
+      execSync(`git clone --depth 1 --branch ${project.branch} ${cloneUrl} ${buildDir}`, { stdio: 'pipe' });
       await log(io, deployment, 'success', '✓ Repository cloned successfully');
-    } catch (err) {
-      await log(io, deployment, 'error', `✗ Clone failed: ${err.message}`);
-      throw new Error('Clone failed');
     }
 
-    // 3. Detect framework
     const framework = detectFramework(buildDir, project.rootDir);
-    await log(io, deployment, 'info', `▸ Detected framework: ${framework.type} (in ${project.rootDir || './'})`);
-
-    // Update project framework
+    if (retryCount === 0) await log(io, deployment, 'info', `▸ Detected framework: ${framework.type}`);
     await Project.findByIdAndUpdate(project._id, { framework: framework.type });
 
-    // 4. Get commit info
-    try {
-      const hash = execSync('git rev-parse HEAD', { cwd: buildDir, stdio: 'pipe' }).toString().trim();
-      const msg = execSync('git log -1 --pretty=%s', { cwd: buildDir, stdio: 'pipe' }).toString().trim();
-      await Deployment.findByIdAndUpdate(deployment._id, { commitHash: hash, commitMessage: msg });
-    } catch { /* ignore */ }
+    const dockerfile = generateDockerfile(framework, project);
+    fs.writeFileSync(path.join(buildDir, 'Dockerfile'), dockerfile);
+    await log(io, deployment, 'info', '▸ Generated optimal Dockerfile');
 
-    if (DOCKER_AVAILABLE) {
-      // 5. Generate Dockerfile
-      await log(io, deployment, 'info', '▸ Generating Dockerfile...');
-      const dockerfile = generateDockerfile(framework, project);
-      fs.writeFileSync(path.join(buildDir, 'Dockerfile'), dockerfile);
-      await log(io, deployment, 'success', '✓ Dockerfile generated');
+    const imageName = `deployx-${project.name.toLowerCase().replace(/[^a-z0-9-]/g, '-')}:v${deployment.version}`;
+    await log(io, deployment, 'info', `▸ Building Docker image using Dockerode tar-fs stream...`);
 
-      // 6. Build Docker image
-      await log(io, deployment, 'info', '▸ Building Docker image...');
-      const imageName = `deployx-${project.name.toLowerCase().replace(/[^a-z0-9-]/g, '-')}:v${deployment.version}`;
-
-      await new Promise((resolve, reject) => {
-        const build = spawn('docker', ['build', '-t', imageName, '.'], { cwd: buildDir });
-
-        build.stdout.on('data', (data) => {
-          const lines = data.toString().split('\n').filter(Boolean);
-          lines.forEach((line) => log(io, deployment, 'info', `  ${line}`));
-        });
-        build.stderr.on('data', (data) => {
-          const lines = data.toString().split('\n').filter(Boolean);
-          lines.forEach((line) => log(io, deployment, 'info', `  ${line}`));
-        });
-        build.on('close', (code) => code === 0 ? resolve() : reject(new Error(`Build failed with code ${code}`)));
-        build.on('error', reject);
-      });
-
-      await log(io, deployment, 'success', `✓ Image built: ${imageName}`);
-
-      // 7. DEPLOYING
-      await Deployment.findByIdAndUpdate(deployment._id, { status: 'deploying', imageId: imageName });
-      emitDeployStatus(io, deployId, 'deploying');
-      await log(io, deployment, 'info', '▸ Starting container...', 'deploy');
-
-      const port = getNextPort();
-
-      // Write env vars to file safely handling Mongoose Map
-      const envFile = path.join(buildDir, '.env.deploy');
-      const plainEnvVars = (project.envVars && typeof project.envVars.toJSON === 'function') 
-        ? project.envVars.toJSON() 
-        : (project.envVars || {});
-        
-      const envContent = Object.entries(plainEnvVars)
-        .filter(([k]) => k !== '_id') // explicitly filter out _id just in case
-        .map(([k, v]) => `${k}=${v}`)
-        .join('\n');
-        
-      fs.writeFileSync(envFile, envContent);
-
-      const containerName = `deployx-${project.name.toLowerCase().replace(/[^a-z0-9-]/g, '-')}-v${deployment.version}`;
-      execSync(
-        `docker run -d --name ${containerName} -p ${port}:${framework.port || 80} --env-file ${envFile} ${imageName}`,
-        { stdio: 'pipe' }
-      );
-
-      const containerId = execSync(`docker inspect --format='{{.Id}}' ${containerName}`, { stdio: 'pipe' }).toString().trim();
-      const deployUrl = `http://localhost:${port}`;
-
-      await log(io, deployment, 'success', `✓ Container started: ${containerName}`, 'deploy');
-      // 8. LIVE
-      const duration = Math.round((Date.now() - startTime) / 1000);
-      
-      // Update Project with the active port
-      await Project.findByIdAndUpdate(project._id, { activePort: port });
-
-      // Generate the public URL (using nip.io for IP addresses so subdomains work over internet)
-      const frontendHost = process.env.FRONTEND_URL ? new URL(process.env.FRONTEND_URL).hostname : 'localhost';
-      const publicUrl = /^[0-9.]+$/.test(frontendHost)
-        ? `http://${project.subdomain}.${frontendHost}.nip.io:8000`
-        : `http://${project.subdomain}.localhost:8000`;
-
-      await log(io, deployment, 'success', `🚀 Deployment LIVE at ${publicUrl}`, 'deploy');
-
-      await Deployment.findByIdAndUpdate(deployment._id, {
-        status: 'live', containerId, deployUrl: publicUrl, buildDuration: duration, finishedAt: new Date(),
-      });
-      emitDeployStatus(io, deployId, 'live');
-    } else {
-      // Fallback: simulate build without Docker
-      await log(io, deployment, 'warn', '⚠ Docker not available, simulating build...');
-
-      await log(io, deployment, 'info', '▸ Installing dependencies...');
-      try {
-        execSync('npm install', { cwd: buildDir, stdio: 'pipe', timeout: 120000 });
-        await log(io, deployment, 'success', '✓ Dependencies installed');
-      } catch {
-        await log(io, deployment, 'warn', '⚠ npm install skipped');
-      }
-
-      await log(io, deployment, 'info', '▸ Building application...');
-      try {
-        const buildCmd = project.buildCommand || framework.build;
-        if (buildCmd && buildCmd !== 'npm install') {
-          execSync(buildCmd, { cwd: buildDir, stdio: 'pipe', timeout: 120000 });
+    // Tar-FS pack
+    const tarStream = tar.pack(buildDir);
+    
+    // Build Image via Dockerode
+    const buildStream = await docker.buildImage(tarStream, { t: imageName });
+    
+    await new Promise((resolve, reject) => {
+      docker.modem.followProgress(buildStream, 
+        (err, res) => err ? reject(err) : resolve(res),
+        (event) => {
+          if (event.stream) log(io, deployment, 'info', `  ${event.stream.trim()}`);
+          if (event.errorDetail) reject(new Error(event.errorDetail.message));
         }
-        await log(io, deployment, 'success', '✓ Build completed');
-      } catch {
-        await log(io, deployment, 'warn', '⚠ Build step skipped');
+      );
+    });
+
+    await log(io, deployment, 'success', `✓ Image built: ${imageName}`);
+
+    // DEPLOYING
+    await Deployment.findByIdAndUpdate(deployment._id, { status: 'deploying', imageId: imageName });
+    if (io) emitDeployStatus(io, deployId, 'deploying');
+    await log(io, deployment, 'info', '▸ Starting container...', 'deploy');
+
+    const port = getNextPort();
+    
+    const plainEnvVars = (project.envVars && typeof project.envVars.toJSON === 'function') 
+      ? project.envVars.toJSON() : (project.envVars || {});
+    const envArray = Object.entries(plainEnvVars).filter(([k]) => k !== '_id').map(([k, v]) => `${k}=${v}`);
+
+    const containerName = `deployx-${project.name.toLowerCase().replace(/[^a-z0-9-]/g, '-')}-v${deployment.version}`;
+    
+    const container = await docker.createContainer({
+      Image: imageName,
+      name: containerName,
+      Env: envArray,
+      ExposedPorts: { [`${framework.port || 80}/tcp`]: {} },
+      HostConfig: {
+        PortBindings: { [`${framework.port || 80}/tcp`]: [{ HostPort: `${port}` }] }
       }
+    });
 
-      const duration = Math.round((Date.now() - startTime) / 1000);
-      const deployUrl = `http://localhost:3001/preview/${deployId}`;
+    await container.start();
+    await log(io, deployment, 'success', `✓ Container started: ${containerName}`, 'deploy');
 
-      await log(io, deployment, 'success', `🚀 Build complete (${duration}s) — ${deployUrl}`, 'deploy');
-      await Deployment.findByIdAndUpdate(deployment._id, {
-        status: 'live', deployUrl, buildDuration: duration, finishedAt: new Date(),
-      });
-      emitDeployStatus(io, deployId, 'live');
-    }
-  } catch (err) {
+    // LIVE
     const duration = Math.round((Date.now() - startTime) / 1000);
-    await log(io, deployment, 'error', `✗ Deployment failed: ${err.message}`);
+    await Project.findByIdAndUpdate(project._id, { activePort: port });
+
+    const frontendHost = process.env.FRONTEND_URL ? new URL(process.env.FRONTEND_URL).hostname : 'localhost';
+    const publicUrl = /^[0-9.]+$/.test(frontendHost)
+      ? `http://${project.subdomain}.${frontendHost}.nip.io:8000`
+      : `http://${project.subdomain}.localhost:8000`;
+
+    await log(io, deployment, 'success', `🚀 Deployment LIVE at ${publicUrl}`, 'deploy');
+
+    await Deployment.findByIdAndUpdate(deployment._id, {
+      status: 'live', containerId: container.id, deployUrl: publicUrl, buildDuration: duration, finishedAt: new Date(),
+    });
+    if (io) emitDeployStatus(io, deployId, 'live');
+
+  } catch (err) {
+    if (retryCount < 2) {
+      await log(io, deployment, 'error', `✗ Build failed: ${err.message}`);
+      
+      // Get the latest logs for AI
+      const updatedDeploy = await Deployment.findById(deployment._id);
+      const errorLogs = updatedDeploy.logs.slice(-50);
+      
+      const healed = await attemptSelfHealing(errorLogs, buildDir, project, deployment, io);
+      if (healed) {
+        await log(io, deployment, 'info', `🔄 Retrying build pipeline after AI patch (Retry ${retryCount + 1}/2)...`);
+        return startBuildPipeline(project, deployment, user, io, retryCount + 1);
+      }
+    }
+
+    const duration = Math.round((Date.now() - startTime) / 1000);
+    await log(io, deployment, 'error', `✗ Deployment ultimately failed: ${err.message}`);
     await Deployment.findByIdAndUpdate(deployment._id, {
       status: 'failed', buildDuration: duration, finishedAt: new Date(),
     });
-    emitDeployStatus(io, deployId, 'failed');
-
-    // Auto AI error analysis
-    try {
-      const updatedDeploy = await Deployment.findById(deployment._id);
-      const analysis = await analyzeBuildError(updatedDeploy.logs, project.framework, project.name);
-      await log(io, deployment, 'info', `🧠 AI Analysis: ${analysis.rootCause}`);
-      if (analysis.fixSteps?.length) {
-        await log(io, deployment, 'info', `💡 Suggested fixes: ${analysis.fixSteps.join(' | ')}`);
-      }
-    } catch { /* AI analysis is best-effort */ }
+    if (io) emitDeployStatus(io, deployId, 'failed');
   }
 }
 

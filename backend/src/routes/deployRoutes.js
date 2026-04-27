@@ -47,8 +47,12 @@ router.post('/:id/rollback', auth, async (req, res) => {
       status: 'queued', triggeredBy: 'rollback', envSnapshot: target.envSnapshot,
     });
 
-    const io = req.app.get('io');
-    startBuildPipeline(project, deployment, req.user, io).catch(console.error);
+    // Enqueue the job in BullMQ
+    await enqueueDeployment({
+      projectId: project._id,
+      deploymentId: deployment._id,
+      user: req.user
+    });
 
     res.json({ deployment });
   } catch (err) {

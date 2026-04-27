@@ -1,9 +1,8 @@
 import { useEffect, useState, useRef } from 'react';
 import { useParams } from 'react-router-dom';
-import { Github, Cpu, Box, Globe, Play, Square, ExternalLink, RefreshCw } from 'lucide-react';
+import { Cpu, Box, Globe, Play, Square, ExternalLink, RefreshCw } from 'lucide-react';
 import { useDeployment } from '../hooks/useDeployment';
 import { useProjects } from '../hooks/useProjects';
-import { aiAPI } from '../services/api';
 import '../styles/project-detail.css';
 
 // SVG wire component for connecting nodes
@@ -22,14 +21,13 @@ const Wire = ({ id, start, end, status }: { id: string, start: {x:number, y:numb
   );
 };
 
-export default function ProjectDetail() {
-  const { id } = useParams();
+export default function ProjectDetail({ projectId }: { projectId: string }) {
   const { projects } = useProjects();
-  const { logs, triggerDeploy, stopDeploy } = useDeployment();
+  const { deploymentLogs, triggerDeploy, stopDeployment } = useDeployment();
   const [deploymentStatus, setDeploymentStatus] = useState<'idle'|'building'|'live'|'failed'>('idle');
   const [aiLogs, setAiLogs] = useState<string[]>(['Waiting for deployment to start...']);
   
-  const project = projects.find(p => p._id === id);
+  const project = projects.find(p => p._id === projectId);
   const terminalRef = useRef<HTMLDivElement>(null);
 
   // Auto-scroll terminal logs
@@ -37,13 +35,13 @@ export default function ProjectDetail() {
     if (terminalRef.current) {
       terminalRef.current.scrollTop = terminalRef.current.scrollHeight;
     }
-  }, [logs]);
+  }, [deploymentLogs]);
 
   // Determine stage based on logs
   let stage = 0; // 0: git, 1: AI, 2: build, 3: live
   if (deploymentStatus === 'building') {
-    if (logs.some(l => l.message.includes('FROM node'))) stage = 2;
-    else if (logs.some(l => l.message.includes('Cloned'))) stage = 1;
+    if (deploymentLogs.some((l: any) => l.message.includes('FROM node'))) stage = 2;
+    else if (deploymentLogs.some((l: any) => l.message.includes('Cloned'))) stage = 1;
     else stage = 0;
   } else if (deploymentStatus === 'live') {
     stage = 3;
@@ -83,7 +81,7 @@ export default function ProjectDetail() {
         {/* Node 1: GitHub */}
         <div className={`wf-node node-git ${stage >= 0 ? (stage > 0 ? 'done' : 'active') : ''}`}>
           <div className="wf-node-header">
-            <div className="wf-node-icon"><Github size={14} /></div>
+            <div className="wf-node-icon">📦</div>
             <div className="wf-node-title">Source Node</div>
             <div className="wf-node-status">{stage > 0 ? 'FETCHED' : 'READY'}</div>
           </div>
@@ -122,8 +120,8 @@ export default function ProjectDetail() {
           </div>
           <div className="wf-node-body">
             <div className="wf-terminal" ref={terminalRef}>
-              {logs.length === 0 && <div className="wf-terminal-line">&gt; Waiting for instructions...</div>}
-              {logs.map((log, i) => (
+              {deploymentLogs.length === 0 && <div className="wf-terminal-line">&gt; Waiting for instructions...</div>}
+              {deploymentLogs.map((log: any, i: number) => (
                 <div key={i} className={`wf-terminal-line ${log.level === 'error' ? 'text-red-500' : ''}`}>
                   {log.message}
                 </div>
@@ -164,7 +162,7 @@ export default function ProjectDetail() {
           {deploymentStatus === 'building' ? <RefreshCw className="animate-spin" size={18} /> : <Play size={18} fill="currentColor" />}
           {deploymentStatus === 'building' ? 'Deploying...' : 'Trigger Pipeline'}
         </button>
-        <button className="btn btn-danger btn-lg" onClick={() => project.latestDeployment && stopDeploy(project.latestDeployment._id)}>
+        <button className="btn btn-danger btn-lg" onClick={() => project.latestDeployment && stopDeployment(project.latestDeployment._id)}>
           <Square size={18} fill="currentColor" /> Stop
         </button>
       </div>

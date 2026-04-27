@@ -51,7 +51,7 @@ function generateDockerfile(framework, project) {
   switch (framework.type) {
     case 'react':
     case 'vue':
-      return `FROM node:18-alpine AS builder
+      return `FROM node:20-alpine AS builder
 WORKDIR /app
 COPY . .
 WORKDIR /app/${rootDir}
@@ -64,7 +64,7 @@ EXPOSE 80
 CMD ["nginx", "-g", "daemon off;"]`;
 
     case 'nextjs':
-      return `FROM node:18-alpine
+      return `FROM node:20-alpine
 WORKDIR /app
 COPY . .
 WORKDIR /app/${rootDir}
@@ -74,7 +74,7 @@ EXPOSE 3000
 CMD ["${startCmd || 'npm start'}"]`;
 
     case 'node':
-      return `FROM node:18-alpine
+      return `FROM node:20-alpine
 WORKDIR /app
 COPY . .
 WORKDIR /app/${rootDir}
@@ -89,7 +89,7 @@ EXPOSE 80
 CMD ["nginx", "-g", "daemon off;"]`;
 
     default:
-      return `FROM node:18-alpine
+      return `FROM node:20-alpine
 WORKDIR /app
 COPY . .
 WORKDIR /app/${rootDir}

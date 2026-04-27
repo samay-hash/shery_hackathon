@@ -29,8 +29,17 @@ const Wire = ({ id, start, end, status }: { id: string, start: {x:number, y:numb
 
 export default function ProjectDetail({ projectId }: { projectId: string }) {
   const { projects } = useProjects();
-  const { deploymentLogs, triggerDeploy, stopDeployment } = useDeployment();
+  const { deploymentLogs, triggerDeploy, stopDeployment, activeDeployment } = useDeployment();
   const [deploymentStatus, setDeploymentStatus] = useState<'idle'|'building'|'live'|'failed'>('idle');
+
+  // Sync status from real socket events
+  useEffect(() => {
+    if (!activeDeployment) return;
+    const s = (activeDeployment as any).status;
+    if (s === 'live') setDeploymentStatus('live');
+    else if (s === 'failed') setDeploymentStatus('failed');
+    else if (s === 'building' || s === 'deploying') setDeploymentStatus('building');
+  }, [activeDeployment]);
   
   const [position, setPosition] = useState({ x: 0, y: 0 });
   const [isDragging, setIsDragging] = useState(false);
@@ -74,7 +83,7 @@ export default function ProjectDetail({ projectId }: { projectId: string }) {
     setDeploymentStatus('building');
     try {
       await triggerDeploy(project._id);
-      setDeploymentStatus('live');
+      // Status will be updated via real Socket.io events from backend worker
     } catch {
       setDeploymentStatus('failed');
     }
@@ -83,16 +92,16 @@ export default function ProjectDetail({ projectId }: { projectId: string }) {
   if (!project) return <div className="p-8 text-white">Loading pipeline...</div>;
 
   const nodes = [
-    { id: 1, name: 'Fetch Source', pos: 'n1', pR: true, logs: stage > 0 ? ['git clone ' + project.repoFullName] : [] },
-    { id: 2, name: 'AI Scanner', pos: 'n2', pL: true, pR: true, logs: stage > 1 ? ['Detected Monorepo', 'Found framework'] : [] },
-    { id: 3, name: 'Docker Config', pos: 'n3', pL: true, pR: true, logs: stage > 2 ? ['Generating multi-stage Dockerfile...'] : [] },
-    { id: 4, name: 'Engine Init', pos: 'n4', pL: true, pR: true, logs: stage > 3 ? ['Booting Docker Daemon...'] : [] },
-    { id: 5, name: 'Deps Install', pos: 'n5', pL: true, pB: true, logs: stage > 4 ? ['RUN npm install'] : [] },
-    { id: 6, name: 'Artifact Build', pos: 'n6', pR: true, pT: true, logs: stage > 5 ? ['RUN npm run build', 'Optimizing chunks...'] : [] },
-    { id: 7, name: 'Image Export', pos: 'n7', pL: true, pR: true, logs: stage > 6 ? ['Exporting layers...', 'Saving image...'] : [] },
-    { id: 8, name: 'Provisioning', pos: 'n8', pL: true, pR: true, logs: stage > 7 ? ['Finding free port...', 'Cleaning old containers...'] : [] },
-    { id: 9, name: 'Proxy Route', pos: 'n9', pL: true, pR: true, logs: stage > 8 ? ['docker run -d', 'Mapping nip.io domain'] : [] },
-    { id: 10, name: 'Live', pos: 'n10', pL: true, logs: stage > 9 ? ['Traffic routing started.', 'SSL Ready.'] : [] }
+    { id: 1, name: 'Fetch Source', pos: 'n1', pR: true },
+    { id: 2, name: 'AI Scanner', pos: 'n2', pL: true, pR: true },
+    { id: 3, name: 'Docker Config', pos: 'n3', pL: true, pR: true },
+    { id: 4, name: 'Engine Init', pos: 'n4', pL: true, pR: true },
+    { id: 5, name: 'Deps Install', pos: 'n5', pL: true, pB: true },
+    { id: 6, name: 'Artifact Build', pos: 'n6', pR: true, pT: true },
+    { id: 7, name: 'Image Export', pos: 'n7', pL: true, pR: true },
+    { id: 8, name: 'Provisioning', pos: 'n8', pL: true, pR: true },
+    { id: 9, name: 'Proxy Route', pos: 'n9', pL: true, pR: true },
+    { id: 10, name: 'Live', pos: 'n10', pL: true },
   ];
 
   return (
@@ -120,37 +129,45 @@ export default function ProjectDetail({ projectId }: { projectId: string }) {
         <Wire id="w8" start={{x:630, y:470}} end={{x:580, y:470}} status={stage > 8 ? 'done' : stage === 8 ? 'active' : 'idle'} />
         <Wire id="w9" start={{x:340, y:470}} end={{x:290, y:470}} status={stage > 9 ? 'done' : stage === 9 ? 'active' : 'idle'} />
 
-        {nodes.map((n) => (
-          <div key={n.id} className={`wf-node ${n.pos} ${stage >= n.id ? (stage > n.id ? 'done' : 'active') : ''}`}>
-            {n.pL && <div className="port left" />}
-            {n.pR && <div className="port right" />}
-            {n.pT && <div className="port top" />}
-            {n.pB && <div className="port bottom" />}
-            
-            <div className="wf-node-header">
-              <div className="wf-node-icon">{n.id}</div>
-              <div className="wf-node-title">{n.name}</div>
-            </div>
-            <div className="wf-node-body">
-              <div className="wf-terminal" ref={n.id === stage ? terminalRef : null}>
-                {n.id === stage && deploymentLogs.length > 0 ? (
-                  deploymentLogs.slice(-3).map((log: any, i: number) => (
-                    <div key={i} className="wf-terminal-line active-text">&gt; {log.message.substring(0, 40)}</div>
-                  ))
-                ) : n.logs.length > 0 ? (
-                  n.logs.map((log, i) => <div key={i} className="wf-terminal-line success-text">&gt; {log}</div>)
-                ) : (
-                  <div className="wf-terminal-line">&gt; Waiting...</div>
+        {nodes.map((n) => {
+          // Show last 3 real logs for the currently active node
+          const nodeIsActive = stage === n.id;
+          const nodeIsDone = stage > n.id;
+          const logsForThisNode = deploymentLogs.slice(-3);
+          return (
+            <div key={n.id} className={`wf-node ${n.pos} ${nodeIsDone ? 'done' : nodeIsActive ? 'active' : ''}`}>
+              {n.pL && <div className="port left" />}
+              {n.pR && <div className="port right" />}
+              {n.pT && <div className="port top" />}
+              {n.pB && <div className="port bottom" />}
+              
+              <div className="wf-node-header">
+                <div className="wf-node-icon">{n.id}</div>
+                <div className="wf-node-title">{n.name}</div>
+              </div>
+              <div className="wf-node-body">
+                <div className="wf-terminal" ref={nodeIsActive ? terminalRef : null}>
+                  {nodeIsActive && logsForThisNode.length > 0 ? (
+                    logsForThisNode.map((log: any, i: number) => (
+                      <div key={i} className={`wf-terminal-line ${log.level === 'error' ? 'error-text' : 'active-text'}`}>
+                        &gt; {log.message.substring(0, 45)}
+                      </div>
+                    ))
+                  ) : nodeIsDone ? (
+                    <div className="wf-terminal-line success-text">&gt; ✓ Complete</div>
+                  ) : (
+                    <div className="wf-terminal-line">&gt; Waiting...</div>
+                  )}
+                </div>
+                {n.id === 10 && stage === 10 && (project.latestDeployment as any)?.deployUrl && (
+                  <a href={(project.latestDeployment as any).deployUrl} target="_blank" rel="noreferrer" className="btn btn-primary btn-sm mt-2">
+                    <ExternalLink size={12} /> Open URL
+                  </a>
                 )}
               </div>
-              {n.id === 10 && stage === 10 && project.latestDeployment?.deployUrl && (
-                <a href={project.latestDeployment.deployUrl} target="_blank" rel="noreferrer" className="btn btn-primary btn-sm mt-2">
-                  <ExternalLink size={12} /> Open URL
-                </a>
-              )}
             </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
 
       <div className="canvas-controls">

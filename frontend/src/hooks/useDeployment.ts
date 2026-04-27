@@ -1,6 +1,9 @@
-import { useCallback, useState } from 'react';
+import { useCallback, useState, useEffect, useRef } from 'react';
+import { io as socketIO, Socket } from 'socket.io-client';
 import { useAppStore, type Deployment, type DeployStatus } from '../store/appStore';
 import { deployAPI } from '../services/api';
+
+const SOCKET_URL = import.meta.env.VITE_SOCKET_URL || 'http://localhost:3001';
 
 export function useDeployment() {
   const {
@@ -11,6 +14,44 @@ export function useDeployment() {
   const [deploying, setDeploying] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [deployments, setDeployments] = useState<Deployment[]>([]);
+  const socketRef = useRef<Socket | null>(null);
+  const currentDeployIdRef = useRef<string | null>(null);
+
+  // Setup socket connection once
+  useEffect(() => {
+    const token = localStorage.getItem('deployx_token');
+    const socket = socketIO(SOCKET_URL, {
+      auth: { token },
+      transports: ['websocket', 'polling'],
+    });
+    socketRef.current = socket;
+
+    socket.on('connect', () => {
+      console.log('[Socket] Connected:', socket.id);
+      // Rejoin room if we were watching a deployment
+      if (currentDeployIdRef.current) {
+        socket.emit('join:deployment', currentDeployIdRef.current);
+      }
+    });
+
+    // Real-time log from backend worker
+    socket.on('deploy:log', (logEntry: { message: string; level: string; timestamp: string }) => {
+      addDeploymentLog(logEntry);
+    });
+
+    // Status change from backend worker
+    socket.on('deploy:status', ({ deploymentId, status }: { deploymentId: string; status: DeployStatus }) => {
+      updateDeploymentStatus(deploymentId, status);
+    });
+
+    socket.on('disconnect', () => {
+      console.log('[Socket] Disconnected');
+    });
+
+    return () => {
+      socket.disconnect();
+    };
+  }, [addDeploymentLog, updateDeploymentStatus]);
 
   const triggerDeploy = useCallback(async (projectId: string) => {
     setDeploying(true);
@@ -18,8 +59,16 @@ export function useDeployment() {
     clearDeploymentLogs();
     try {
       const { data } = await deployAPI.trigger(projectId);
-      setActiveDeployment(data.deployment);
-      return data.deployment as Deployment;
+      const deployment = data.deployment as Deployment;
+      setActiveDeployment(deployment);
+      currentDeployIdRef.current = deployment._id;
+
+      // Join Socket.io room to receive live logs for this deployment
+      if (socketRef.current?.connected) {
+        socketRef.current.emit('join:deployment', deployment._id);
+        console.log('[Socket] Joined deployment room:', deployment._id);
+      }
+      return deployment;
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : 'Deploy failed';
       setError(message);

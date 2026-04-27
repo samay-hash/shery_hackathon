@@ -24,21 +24,34 @@ async function log(io, deployment, level, message, source = 'build') {
 // Detect framework from package.json
 function detectFramework(repoPath, rootDir = '.') {
   try {
-    const pkgPath = path.join(repoPath, rootDir, 'package.json');
+    let pkgPath = path.join(repoPath, rootDir, 'package.json');
+    let detectedRoot = rootDir;
+
+    // Hackathon Magic: Monorepo Auto-Detection
+    if (!fs.existsSync(pkgPath) && rootDir === '.') {
+      if (fs.existsSync(path.join(repoPath, 'frontend', 'package.json'))) {
+        detectedRoot = 'frontend';
+        pkgPath = path.join(repoPath, 'frontend', 'package.json');
+      } else if (fs.existsSync(path.join(repoPath, 'backend', 'package.json'))) {
+        detectedRoot = 'backend';
+        pkgPath = path.join(repoPath, 'backend', 'package.json');
+      }
+    }
+
     if (!fs.existsSync(pkgPath)) {
-      if (fs.existsSync(path.join(repoPath, rootDir, 'index.html'))) return { type: 'static', build: '', start: '', output: '.', port: 80 };
-      return { type: 'unknown', build: '', start: '', output: '.', port: 8080 };
+      if (fs.existsSync(path.join(repoPath, detectedRoot, 'index.html'))) return { type: 'static', build: '', start: '', output: '.', port: 80, detectedRoot };
+      return { type: 'unknown', build: '', start: '', output: '.', port: 8080, detectedRoot };
     }
     const pkg = JSON.parse(fs.readFileSync(pkgPath, 'utf8'));
     const deps = { ...pkg.dependencies, ...pkg.devDependencies };
 
-    if (deps.next) return { type: 'nextjs', build: 'npm run build', start: 'npm start', output: '.next', port: 3000 };
-    if (deps.react || deps['react-dom']) return { type: 'react', build: 'npm run build', start: '', output: 'dist', port: 80 };
-    if (deps.vue) return { type: 'vue', build: 'npm run build', start: '', output: 'dist', port: 80 };
-    if (deps.express || deps.fastify || deps.koa) return { type: 'node', build: 'npm install', start: pkg.scripts?.start || 'node index.js', output: '.', port: 3000 };
-    return { type: 'node', build: 'npm install', start: pkg.scripts?.start || 'node index.js', output: '.', port: 3000 };
+    if (deps.next) return { type: 'nextjs', build: 'npm run build', start: 'npm start', output: '.next', port: 3000, detectedRoot };
+    if (deps.react || deps['react-dom']) return { type: 'react', build: 'npm run build', start: '', output: 'dist', port: 80, detectedRoot };
+    if (deps.vue) return { type: 'vue', build: 'npm run build', start: '', output: 'dist', port: 80, detectedRoot };
+    if (deps.express || deps.fastify || deps.koa) return { type: 'node', build: 'npm install', start: pkg.scripts?.start || 'node index.js', output: '.', port: 3000, detectedRoot };
+    return { type: 'node', build: 'npm install', start: pkg.scripts?.start || 'node index.js', output: '.', port: 3000, detectedRoot };
   } catch {
-    return { type: 'unknown', build: '', start: '', output: '.', port: 8080 };
+    return { type: 'unknown', build: '', start: '', output: '.', port: 8080, detectedRoot: rootDir };
   }
 }
 
@@ -46,7 +59,7 @@ function detectFramework(repoPath, rootDir = '.') {
 function generateDockerfile(framework, project) {
   const buildCmd = project.buildCommand || framework.build;
   const startCmd = project.startCommand || framework.start;
-  const rootDir = project.rootDir && project.rootDir !== '.' ? project.rootDir : '.';
+  const rootDir = framework.detectedRoot || (project.rootDir && project.rootDir !== '.' ? project.rootDir : '.');
 
   switch (framework.type) {
     case 'react':

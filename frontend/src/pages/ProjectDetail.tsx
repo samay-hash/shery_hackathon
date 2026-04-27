@@ -27,6 +27,26 @@ export default function ProjectDetail({ projectId }: { projectId: string }) {
   const [deploymentStatus, setDeploymentStatus] = useState<'idle'|'building'|'live'|'failed'>('idle');
   const [aiLogs, setAiLogs] = useState<string[]>(['Waiting for deployment to start...']);
   
+  // Canvas panning state
+  const [position, setPosition] = useState({ x: 0, y: 0 });
+  const [isDragging, setIsDragging] = useState(false);
+  const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
+
+  const handleMouseDown = (e: React.MouseEvent) => {
+    setIsDragging(true);
+    setDragStart({ x: e.clientX - position.x, y: e.clientY - position.y });
+  };
+
+  const handleMouseMove = (e: React.MouseEvent) => {
+    if (isDragging) {
+      setPosition({ x: e.clientX - dragStart.x, y: e.clientY - dragStart.y });
+    }
+  };
+
+  const handleMouseUp = () => {
+    setIsDragging(false);
+  };
+  
   const project = projects.find(p => p._id === projectId);
   const terminalRef = useRef<HTMLDivElement>(null);
 
@@ -68,10 +88,17 @@ export default function ProjectDetail({ projectId }: { projectId: string }) {
   if (!project) return <div className="p-8 text-white">Loading node architecture...</div>;
 
   return (
-    <div className="canvas-page">
-      <div className="canvas-bg-pattern" />
+    <div 
+      className="canvas-page" 
+      onMouseDown={handleMouseDown}
+      onMouseMove={handleMouseMove}
+      onMouseUp={handleMouseUp}
+      onMouseLeave={handleMouseUp}
+      style={{ cursor: isDragging ? 'grabbing' : 'grab' }}
+    >
+      <div className="canvas-bg-pattern" style={{ transform: `translate(${position.x}px, ${position.y}px)` }} />
 
-      <div className="canvas-viewport">
+      <div className="canvas-viewport" style={{ transform: `translate(${position.x}px, ${position.y}px) scale(0.85)` }}>
 
         <Wire id="w1" start={{x: 370, y: 360}} end={{x: 450, y: 210}} status={stage > 0 ? (stage > 1 ? 'done' : 'active') : 'idle'} />
         <Wire id="w2" start={{x: 770, y: 210}} end={{x: 450, y: 510}} status={stage > 1 ? (stage > 2 ? 'done' : 'active') : 'idle'} />

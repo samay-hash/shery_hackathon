@@ -1,6 +1,6 @@
 import { useEffect, useState, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ArrowLeft, Rocket, Clock, GitBranch, ExternalLink, RotateCcw, Settings, Key, Eye, EyeOff, Plus, Trash2, CheckCircle2, XCircle, Loader2, AlertCircle, FileCode, Box, Server, Globe } from 'lucide-react';
+import { ArrowLeft, Rocket, Clock, GitBranch, ExternalLink, RotateCcw, Eye, EyeOff, Plus, Trash2, CheckCircle2, XCircle, Loader2, AlertCircle, FileCode, Box, Server, Globe } from 'lucide-react';
 import { useProjects } from '../hooks/useProjects';
 import { useDeployment } from '../hooks/useDeployment';
 import { useSocket } from '../hooks/useSocket';
@@ -41,7 +41,6 @@ export default function ProjectDetail({ projectId }: { projectId: string }) {
   const { selectedProject, fetchProject, updateEnvVars, editProject } = useProjects();
   const { triggerDeploy, fetchDeployments, deployments, deploymentLogs, activeDeployment, rollback } = useDeployment();
   const { connect, joinDeploymentRoom } = useSocket();
-  const [activeTab, setActiveTab] = useState<'overview' | 'deployments' | 'env' | 'settings'>('overview');
   const [envPairs, setEnvPairs] = useState<{ key: string; value: string; visible: boolean }[]>([]);
   const [deploying, setDeploying] = useState(false);
   
@@ -53,7 +52,6 @@ export default function ProjectDetail({ projectId }: { projectId: string }) {
     rootDir: '',
     branch: ''
   });
-  const [savingSettings, setSavingSettings] = useState(false);
 
   const logEndRef = useRef<HTMLDivElement>(null);
 
@@ -103,15 +101,12 @@ export default function ProjectDetail({ projectId }: { projectId: string }) {
     envPairs.forEach(({ key, value }) => { if (key.trim()) vars[key.trim()] = value; });
     await updateEnvVars(projectId, vars);
   };
-
   const handleSaveSettings = async () => {
-    setSavingSettings(true);
     try {
       await editProject(projectId, settingsForm);
     } catch (err) {
       console.error(err);
     }
-    setSavingSettings(false);
   };
 
   const handleRollback = async (deploymentId: string) => {

@@ -36,7 +36,9 @@ export function useDeployment() {
 
     // Real-time log from backend worker
     socket.on('deploy:log', (logEntry: { message: string; level: string; timestamp: string; source?: string }) => {
-      addDeploymentLog({ ...logEntry, source: logEntry.source || 'build' });
+      const validSources = ['build', 'deploy', 'runtime'] as const;
+      const src = validSources.includes(logEntry.source as any) ? logEntry.source as 'build' | 'deploy' | 'runtime' : 'build';
+      addDeploymentLog({ ...logEntry, source: src });
     });
 
     // Status change from backend worker

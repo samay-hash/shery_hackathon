@@ -10,6 +10,7 @@ const projectSchema = new mongoose.Schema({
   buildCommand: { type: String, default: '' },
   startCommand: { type: String, default: '' },
   outputDir: { type: String, default: 'dist' },
+  rootDir: { type: String, default: '.' },
   envVars: { type: Map, of: String, default: {} },
   customDomain: { type: String, default: '' },
   subdomain: { type: String, unique: true },

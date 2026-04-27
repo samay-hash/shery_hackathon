@@ -90,7 +90,7 @@ router.get('/:id', auth, async (req, res) => {
 // PUT /api/projects/:id — Update project
 router.put('/:id', auth, async (req, res) => {
   try {
-    const allowed = ['name', 'branch', 'buildCommand', 'startCommand', 'outputDir', 'autoDeployEnabled', 'customDomain'];
+    const allowed = ['name', 'branch', 'buildCommand', 'startCommand', 'outputDir', 'rootDir', 'autoDeployEnabled', 'customDomain'];
     const updates = {};
     allowed.forEach((key) => {
       if (req.body[key] !== undefined) updates[key] = req.body[key];

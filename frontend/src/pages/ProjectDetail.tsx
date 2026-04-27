@@ -43,12 +43,23 @@ function timeAgo(dateStr: string): string {
 }
 
 export default function ProjectDetail({ projectId }: { projectId: string }) {
-  const { selectedProject, fetchProject, updateEnvVars } = useProjects();
+  const { selectedProject, fetchProject, updateEnvVars, editProject } = useProjects();
   const { triggerDeploy, fetchDeployments, deployments, deploymentLogs, activeDeployment, rollback } = useDeployment();
   const { connect, joinDeploymentRoom } = useSocket();
   const [activeTab, setActiveTab] = useState<'overview' | 'deployments' | 'env' | 'settings'>('overview');
   const [envPairs, setEnvPairs] = useState<{ key: string; value: string; visible: boolean }[]>([]);
   const [deploying, setDeploying] = useState(false);
+  
+  // Settings Form State
+  const [settingsForm, setSettingsForm] = useState({
+    buildCommand: '',
+    startCommand: '',
+    outputDir: '',
+    rootDir: '',
+    branch: ''
+  });
+  const [savingSettings, setSavingSettings] = useState(false);
+
   const logEndRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -58,12 +69,21 @@ export default function ProjectDetail({ projectId }: { projectId: string }) {
   }, [projectId, fetchProject, fetchDeployments, connect]);
 
   useEffect(() => {
-    if (selectedProject?.envVars) {
-      setEnvPairs(
-        Object.entries(selectedProject.envVars).map(([key, value]) => ({ key, value, visible: false }))
-      );
+    if (selectedProject) {
+      if (selectedProject.envVars) {
+        setEnvPairs(
+          Object.entries(selectedProject.envVars).map(([key, value]) => ({ key, value, visible: false }))
+        );
+      }
+      setSettingsForm({
+        buildCommand: selectedProject.buildCommand || '',
+        startCommand: selectedProject.startCommand || '',
+        outputDir: selectedProject.outputDir || '',
+        rootDir: selectedProject.rootDir || '.',
+        branch: selectedProject.branch || 'main'
+      });
     }
-  }, [selectedProject?.envVars]);
+  }, [selectedProject]);
 
   useEffect(() => {
     if (activeDeployment) {
@@ -87,6 +107,16 @@ export default function ProjectDetail({ projectId }: { projectId: string }) {
     const vars: Record<string, string> = {};
     envPairs.forEach(({ key, value }) => { if (key.trim()) vars[key.trim()] = value; });
     await updateEnvVars(projectId, vars);
+  };
+
+  const handleSaveSettings = async () => {
+    setSavingSettings(true);
+    try {
+      await editProject(projectId, settingsForm);
+    } catch (err) {
+      console.error(err);
+    }
+    setSavingSettings(false);
   };
 
   const handleRollback = async (deploymentId: string) => {
@@ -344,23 +374,36 @@ export default function ProjectDetail({ projectId }: { projectId: string }) {
                 <h3 className="card-section-title">Build Settings</h3>
                 <div className="settings-form">
                   <div className="form-group">
+                    <label>Root Directory</label>
+                    <input className="input" value={settingsForm.rootDir} onChange={(e) => setSettingsForm({ ...settingsForm, rootDir: e.target.value })} placeholder="./ (e.g. frontend)" />
+                    <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>Leave as "./" unless your project is in a subfolder (e.g. monorepo).</span>
+                  </div>
+                  <div className="form-group">
                     <label>Build Command</label>
-                    <input className="input" defaultValue={selectedProject.buildCommand} placeholder="npm run build" />
+                    <input className="input" value={settingsForm.buildCommand} onChange={(e) => setSettingsForm({ ...settingsForm, buildCommand: e.target.value })} placeholder="npm run build (leave empty for auto)" />
                   </div>
                   <div className="form-group">
                     <label>Start Command</label>
-                    <input className="input" defaultValue={selectedProject.startCommand} placeholder="npm start" />
+                    <input className="input" value={settingsForm.startCommand} onChange={(e) => setSettingsForm({ ...settingsForm, startCommand: e.target.value })} placeholder="npm start (leave empty for auto)" />
                   </div>
                   <div className="form-group">
                     <label>Output Directory</label>
-                    <input className="input" defaultValue={selectedProject.outputDir} placeholder="dist" />
+                    <input className="input" value={settingsForm.outputDir} onChange={(e) => setSettingsForm({ ...settingsForm, outputDir: e.target.value })} placeholder="dist or .next" />
                   </div>
                   <div className="form-group">
                     <label>Branch</label>
-                    <input className="input" defaultValue={selectedProject.branch} placeholder="main" />
+                    <input className="input" value={settingsForm.branch} onChange={(e) => setSettingsForm({ ...settingsForm, branch: e.target.value })} placeholder="main" />
                   </div>
                 </div>
-                <button className="btn btn-primary" style={{ marginTop: 20 }}>Save Settings</button>
+                <button 
+                  className={`btn btn-primary ${savingSettings ? 'btn-loading' : ''}`} 
+                  style={{ marginTop: 20 }} 
+                  onClick={handleSaveSettings}
+                  disabled={savingSettings}
+                >
+                  {savingSettings ? <Loader2 size={16} className="animate-spin" /> : null}
+                  {savingSettings ? 'Saving...' : 'Save Settings'}
+                </button>
               </div>
 
               <div className="card danger-zone">

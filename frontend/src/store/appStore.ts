@@ -21,6 +21,7 @@ export interface Project {
   buildCommand: string;
   startCommand: string;
   outputDir: string;
+  rootDir: string;
   envVars: Record<string, string>;
   customDomain?: string;
   autoDeployEnabled: boolean;

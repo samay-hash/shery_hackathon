@@ -21,11 +21,11 @@ async function log(io, deployment, level, message, source = 'build') {
 }
 
 // Detect framework from package.json
-function detectFramework(repoPath) {
+function detectFramework(repoPath, rootDir = '.') {
   try {
-    const pkgPath = path.join(repoPath, 'package.json');
+    const pkgPath = path.join(repoPath, rootDir, 'package.json');
     if (!fs.existsSync(pkgPath)) {
-      if (fs.existsSync(path.join(repoPath, 'index.html'))) return { type: 'static', build: '', start: '', output: '.', port: 80 };
+      if (fs.existsSync(path.join(repoPath, rootDir, 'index.html'))) return { type: 'static', build: '', start: '', output: '.', port: 80 };
       return { type: 'unknown', build: '', start: '', output: '.', port: 8080 };
     }
     const pkg = JSON.parse(fs.readFileSync(pkgPath, 'utf8'));
@@ -45,28 +45,29 @@ function detectFramework(repoPath) {
 function generateDockerfile(framework, project) {
   const buildCmd = project.buildCommand || framework.build;
   const startCmd = project.startCommand || framework.start;
+  const rootDir = project.rootDir && project.rootDir !== '.' ? project.rootDir : '.';
 
   switch (framework.type) {
     case 'react':
     case 'vue':
       return `FROM node:18-alpine AS builder
 WORKDIR /app
-COPY package*.json ./
-RUN npm ci
 COPY . .
+WORKDIR /app/${rootDir}
+RUN npm ci
 RUN ${buildCmd || 'npm run build'}
 
 FROM nginx:alpine
-COPY --from=builder /app/${project.outputDir || framework.output || 'dist'} /usr/share/nginx/html
+COPY --from=builder /app/${rootDir === '.' ? '' : rootDir + '/'}${project.outputDir || framework.output || 'dist'} /usr/share/nginx/html
 EXPOSE 80
 CMD ["nginx", "-g", "daemon off;"]`;
 
     case 'nextjs':
       return `FROM node:18-alpine
 WORKDIR /app
-COPY package*.json ./
-RUN npm ci
 COPY . .
+WORKDIR /app/${rootDir}
+RUN npm ci
 RUN ${buildCmd || 'npm run build'}
 EXPOSE 3000
 CMD ["${startCmd || 'npm start'}"]`;
@@ -74,15 +75,15 @@ CMD ["${startCmd || 'npm start'}"]`;
     case 'node':
       return `FROM node:18-alpine
 WORKDIR /app
-COPY package*.json ./
-RUN npm ci --production
 COPY . .
+WORKDIR /app/${rootDir}
+RUN npm ci --production
 EXPOSE ${framework.port}
 CMD ${JSON.stringify((startCmd || 'node index.js').split(' '))}`;
 
     case 'static':
       return `FROM nginx:alpine
-COPY . /usr/share/nginx/html
+COPY ${rootDir} /usr/share/nginx/html
 EXPOSE 80
 CMD ["nginx", "-g", "daemon off;"]`;
 
@@ -90,6 +91,7 @@ CMD ["nginx", "-g", "daemon off;"]`;
       return `FROM node:18-alpine
 WORKDIR /app
 COPY . .
+WORKDIR /app/${rootDir}
 RUN npm install 2>/dev/null || true
 EXPOSE 8080
 CMD ["node", "index.js"]`;
@@ -132,8 +134,8 @@ async function startBuildPipeline(project, deployment, user, io) {
     }
 
     // 3. Detect framework
-    const framework = detectFramework(buildDir);
-    await log(io, deployment, 'info', `▸ Detected framework: ${framework.type}`);
+    const framework = detectFramework(buildDir, project.rootDir);
+    await log(io, deployment, 'info', `▸ Detected framework: ${framework.type} (in ${project.rootDir || './'})`);
 
     // Update project framework
     await Project.findByIdAndUpdate(project._id, { framework: framework.type });

@@ -180,9 +180,17 @@ async function startBuildPipeline(project, deployment, user, io) {
 
       const port = getNextPort();
 
-      // Write env vars to file
+      // Write env vars to file safely handling Mongoose Map
       const envFile = path.join(buildDir, '.env.deploy');
-      const envContent = Object.entries(project.envVars || {}).map(([k, v]) => `${k}=${v}`).join('\n');
+      const plainEnvVars = (project.envVars && typeof project.envVars.toJSON === 'function') 
+        ? project.envVars.toJSON() 
+        : (project.envVars || {});
+        
+      const envContent = Object.entries(plainEnvVars)
+        .filter(([k]) => k !== '_id') // explicitly filter out _id just in case
+        .map(([k, v]) => `${k}=${v}`)
+        .join('\n');
+        
       fs.writeFileSync(envFile, envContent);
 
       const containerName = `deployx-${project.name.toLowerCase().replace(/[^a-z0-9-]/g, '-')}-v${deployment.version}`;

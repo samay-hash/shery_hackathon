@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Plus, Search, ExternalLink, Rocket, GitBranch, Activity, Server, Clock, ChevronRight } from 'lucide-react';
+import { Plus, Search, ExternalLink, Rocket, GitBranch, Activity, Server, Clock } from 'lucide-react';
 import { useProjects } from '../hooks/useProjects';
 import { useDeployment } from '../hooks/useDeployment';
 import type { Project, Framework } from '../store/appStore';
@@ -42,7 +42,6 @@ function ProjectNode({ project, onSelect, onDeploy }: { project: Project; onSele
   
   // Fake latency metric for visual appeal
   const latency = status === 'live' ? Math.floor(Math.random() * 40) + 12 + 'ms' : '--';
-  const uptime = status === 'live' ? '99.9%' : '--';
 
   return (
     <div className="project-node" onClick={onSelect}>

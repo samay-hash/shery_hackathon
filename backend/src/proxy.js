@@ -32,8 +32,9 @@ const proxyServer = http.createServer(async (req, res) => {
       `);
     }
 
-    // Proxy the traffic to the corresponding Docker container's port
-    proxy.web(req, res, { target: `http://localhost:${project.activePort}` });
+    // Proxy the traffic to the corresponding Docker container's port on the Host machine
+    const hostIp = process.env.DOCKER_HOST_IP || '172.17.0.1'; // 172.17.0.1 is the default Docker bridge IP for Linux EC2
+    proxy.web(req, res, { target: `http://${hostIp}:${project.activePort}` });
   } catch (err) {
     console.error(`[Proxy] Routing error for ${host}:`, err.message);
     res.writeHead(500, { 'Content-Type': 'text/plain' });
@@ -63,7 +64,8 @@ proxyServer.on('upgrade', async (req, socket, head) => {
   try {
     const project = await Project.findOne({ subdomain: subdomain.toLowerCase() });
     if (project && project.activePort) {
-      proxy.ws(req, socket, head, { target: `http://localhost:${project.activePort}` });
+      const hostIp = process.env.DOCKER_HOST_IP || '172.17.0.1';
+      proxy.ws(req, socket, head, { target: `http://${hostIp}:${project.activePort}` });
     } else {
       socket.destroy();
     }

@@ -1,6 +1,6 @@
 import { useEffect, useState, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ArrowLeft, Rocket, Clock, GitBranch, ExternalLink, RotateCcw, Settings, Key, Eye, EyeOff, Plus, Trash2, CheckCircle2, XCircle, Loader2, AlertCircle, Github, FileCode, Box, Server, Globe } from 'lucide-react';
+import { ArrowLeft, Rocket, Clock, GitBranch, ExternalLink, RotateCcw, Settings, Key, Eye, EyeOff, Plus, Trash2, CheckCircle2, XCircle, Loader2, AlertCircle, FileCode, Box, Server, Globe } from 'lucide-react';
 import { useProjects } from '../hooks/useProjects';
 import { useDeployment } from '../hooks/useDeployment';
 import { useSocket } from '../hooks/useSocket';
@@ -8,7 +8,7 @@ import type { Deployment, DeployStatus } from '../store/appStore';
 import '../styles/project-detail.css';
 
 const pipelineNodes = [
-  { id: 'fetch', label: 'Git Fetch', icon: Github },
+  { id: 'fetch', label: 'Git Fetch', icon: GitBranch },
   { id: 'env', label: 'Env Setup', icon: FileCode },
   { id: 'build', label: 'Docker Build', icon: Box },
   { id: 'run', label: 'Deploy Run', icon: Server },

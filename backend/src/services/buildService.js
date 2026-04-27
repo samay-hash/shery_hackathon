@@ -209,8 +209,11 @@ async function startBuildPipeline(project, deployment, user, io) {
       // Update Project with the active port
       await Project.findByIdAndUpdate(project._id, { activePort: port });
 
-      // Generate the public URL (using proxy port 8000 for local testing)
-      const publicUrl = `http://${project.subdomain}.localhost:8000`;
+      // Generate the public URL (using nip.io for IP addresses so subdomains work over internet)
+      const frontendHost = process.env.FRONTEND_URL ? new URL(process.env.FRONTEND_URL).hostname : 'localhost';
+      const publicUrl = /^[0-9.]+$/.test(frontendHost)
+        ? `http://${project.subdomain}.${frontendHost}.nip.io:8000`
+        : `http://${project.subdomain}.localhost:8000`;
 
       await log(io, deployment, 'success', `🚀 Deployment LIVE at ${publicUrl}`, 'deploy');
 

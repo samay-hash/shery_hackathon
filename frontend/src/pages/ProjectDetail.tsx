@@ -5,7 +5,7 @@ import { useDeployment } from '../hooks/useDeployment';
 import { useProjects } from '../hooks/useProjects';
 import '../styles/project-detail.css';
 
-// SVG wire component for connecting nodes
+
 const Wire = ({ id, start, end, status }: { id: string, start: {x:number, y:number}, end: {x:number, y:number}, status: 'idle'|'active'|'done' }) => {
   const dx = Math.abs(end.x - start.x) * 0.5;
   const path = `M ${start.x} ${start.y} C ${start.x + dx} ${start.y}, ${end.x - dx} ${end.y}, ${end.x} ${end.y}`;
@@ -30,15 +30,14 @@ export default function ProjectDetail({ projectId }: { projectId: string }) {
   const project = projects.find(p => p._id === projectId);
   const terminalRef = useRef<HTMLDivElement>(null);
 
-  // Auto-scroll terminal logs
+
   useEffect(() => {
     if (terminalRef.current) {
       terminalRef.current.scrollTop = terminalRef.current.scrollHeight;
     }
   }, [deploymentLogs]);
 
-  // Determine stage based on logs
-  let stage = 0; // 0: git, 1: AI, 2: build, 3: live
+  let stage = 0;
   if (deploymentStatus === 'building') {
     if (deploymentLogs.some((l: any) => l.message.includes('FROM node'))) stage = 2;
     else if (deploymentLogs.some((l: any) => l.message.includes('Cloned'))) stage = 1;
@@ -47,7 +46,7 @@ export default function ProjectDetail({ projectId }: { projectId: string }) {
     stage = 3;
   }
 
-  // Simulate AI scanning when reaching stage 1
+
   useEffect(() => {
     if (stage === 1 && aiLogs.length === 1) {
       setAiLogs(['Analyzing repository structure...', 'Detected React + Vite framework.', 'Optimizing Dockerfile...', 'Scan complete! Passing to builder.']);
@@ -73,12 +72,12 @@ export default function ProjectDetail({ projectId }: { projectId: string }) {
       <div className="canvas-bg-pattern" />
 
       <div className="canvas-viewport">
-        {/* Wires */}
+
         <Wire id="w1" start={{x: 370, y: 360}} end={{x: 450, y: 210}} status={stage > 0 ? (stage > 1 ? 'done' : 'active') : 'idle'} />
         <Wire id="w2" start={{x: 770, y: 210}} end={{x: 450, y: 510}} status={stage > 1 ? (stage > 2 ? 'done' : 'active') : 'idle'} />
         <Wire id="w3" start={{x: 770, y: 510}} end={{x: 850, y: 360}} status={stage > 2 ? 'done' : 'idle'} />
 
-        {/* Node 1: GitHub */}
+
         <div className={`wf-node node-git ${stage >= 0 ? (stage > 0 ? 'done' : 'active') : ''}`}>
           <div className="wf-node-header">
             <div className="wf-node-icon">📦</div>
@@ -94,7 +93,7 @@ export default function ProjectDetail({ projectId }: { projectId: string }) {
           <div className="port right" />
         </div>
 
-        {/* Node 2: AI Scanner */}
+
         <div className={`wf-node node-ai ${stage >= 1 ? (stage > 1 ? 'done' : 'active') : ''}`}>
           <div className="port left" />
           <div className="wf-node-header">
@@ -110,7 +109,7 @@ export default function ProjectDetail({ projectId }: { projectId: string }) {
           <div className="port right" />
         </div>
 
-        {/* Node 3: Docker Build */}
+
         <div className={`wf-node node-build ${stage >= 2 ? (stage > 2 ? 'done' : 'active') : ''}`}>
           <div className="port left" />
           <div className="wf-node-header">
@@ -131,7 +130,7 @@ export default function ProjectDetail({ projectId }: { projectId: string }) {
           <div className="port right" />
         </div>
 
-        {/* Node 4: Live Proxy */}
+
         <div className={`wf-node node-run ${stage === 3 ? 'done active' : ''}`}>
           <div className="port left" />
           <div className="wf-node-header">
@@ -152,7 +151,7 @@ export default function ProjectDetail({ projectId }: { projectId: string }) {
         </div>
       </div>
 
-      {/* Control Panel */}
+
       <div className="canvas-controls">
         <button 
           className="btn btn-primary btn-lg glow" 

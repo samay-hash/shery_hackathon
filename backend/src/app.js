@@ -12,6 +12,8 @@ const projectRoutes = require('./routes/projectRoutes');
 const deployRoutes = require('./routes/deployRoutes');
 const webhookRoutes = require('./routes/webhookRoutes');
 const githubRoutes = require('./routes/githubRoutes');
+const aiRoutes = require('./routes/aiRoutes');
+const adminRoutes = require('./routes/adminRoutes');
 const { setupSocket } = require('./socket/socketHandler');
 
 const app = express();
@@ -45,6 +47,8 @@ app.use('/api/projects', projectRoutes);
 app.use('/api/deployments', deployRoutes);
 app.use('/api/webhooks', webhookRoutes);
 app.use('/api/github', githubRoutes);
+app.use('/api/ai', aiRoutes);
+app.use('/api/admin', adminRoutes);
 
 // Health check
 app.get('/api/health', (req, res) => {

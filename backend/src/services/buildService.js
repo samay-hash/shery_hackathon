@@ -4,6 +4,7 @@ const { execSync, spawn } = require('child_process');
 const Deployment = require('../models/Deployment');
 const Project = require('../models/Project');
 const { emitDeployLog, emitDeployStatus } = require('../socket/socketHandler');
+const { analyzeBuildError } = require('./aiService');
 
 const BUILDS_DIR = path.join(__dirname, '..', '..', 'builds');
 const DOCKER_AVAILABLE = checkDocker();
@@ -104,6 +105,24 @@ function getNextPort() {
   return nextPort++;
 }
 
+// Stop and remove old containers for this project
+async function cleanupOldContainers(projectName, io, deployment) {
+  if (!DOCKER_AVAILABLE) return;
+  try {
+    const prefix = `deployx-${projectName.toLowerCase().replace(/[^a-z0-9-]/g, '-')}`;
+    const running = execSync(`docker ps -a --filter name=${prefix} --format "{{.Names}}"`, { stdio: 'pipe' }).toString().trim();
+    if (running) {
+      const containers = running.split('\n').filter(Boolean);
+      for (const c of containers) {
+        try {
+          execSync(`docker stop ${c} && docker rm ${c}`, { stdio: 'pipe', timeout: 15000 });
+          await log(io, deployment, 'info', `♻ Cleaned up old container: ${c}`);
+        } catch { /* ignore */ }
+      }
+    }
+  } catch { /* no old containers */ }
+}
+
 // Main build pipeline
 async function startBuildPipeline(project, deployment, user, io) {
   const startTime = Date.now();
@@ -111,6 +130,9 @@ async function startBuildPipeline(project, deployment, user, io) {
   const buildDir = path.join(BUILDS_DIR, deployId);
 
   try {
+    // 0. Cleanup old containers for this project
+    await cleanupOldContainers(project.name, io, deployment);
+
     // 1. QUEUED → BUILDING
     await Deployment.findByIdAndUpdate(deployment._id, { status: 'building' });
     emitDeployStatus(io, deployId, 'building');
@@ -262,6 +284,16 @@ async function startBuildPipeline(project, deployment, user, io) {
       status: 'failed', buildDuration: duration, finishedAt: new Date(),
     });
     emitDeployStatus(io, deployId, 'failed');
+
+    // Auto AI error analysis
+    try {
+      const updatedDeploy = await Deployment.findById(deployment._id);
+      const analysis = await analyzeBuildError(updatedDeploy.logs, project.framework, project.name);
+      await log(io, deployment, 'info', `🧠 AI Analysis: ${analysis.rootCause}`);
+      if (analysis.fixSteps?.length) {
+        await log(io, deployment, 'info', `💡 Suggested fixes: ${analysis.fixSteps.join(' | ')}`);
+      }
+    } catch { /* AI analysis is best-effort */ }
   }
 }
 

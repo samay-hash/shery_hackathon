@@ -61,4 +61,19 @@ export const githubAPI = {
   listRepos: () => api.get('/github/repos'),
 };
 
+// ---- AI ----
+export const aiAPI = {
+  analyzeError: (deploymentId: string) => api.post('/ai/analyze-error', { deploymentId }),
+  scanProject: (projectId: string) => api.post('/ai/scan-project', { projectId }),
+  deploySummary: (deploymentId: string) => api.post('/ai/deploy-summary', { deploymentId }),
+};
+
+// ---- Admin ----
+export const adminAPI = {
+  getStats: () => api.get('/admin/stats'),
+  getUsers: () => api.get('/admin/users'),
+  getDeployments: () => api.get('/admin/deployments'),
+  deleteUser: (id: string) => api.delete(`/admin/users/${id}`),
+};
+
 export default api;

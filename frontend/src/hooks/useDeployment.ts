@@ -34,11 +34,9 @@ export function useDeployment() {
       }
     });
 
-    // Real-time log from backend worker
-    socket.on('deploy:log', (logEntry: { message: string; level: string; timestamp: string; source?: string }) => {
-      const validSources = ['build', 'deploy', 'runtime'] as const;
-      const src = validSources.includes(logEntry.source as any) ? logEntry.source as 'build' | 'deploy' | 'runtime' : 'build';
-      addDeploymentLog({ ...logEntry, source: src });
+    // Real-time log from backend worker — cast to LogEntry since backend guarantees the shape
+    socket.on('deploy:log', (logEntry: unknown) => {
+      addDeploymentLog(logEntry as import('../store/appStore').LogEntry);
     });
 
     // Status change from backend worker

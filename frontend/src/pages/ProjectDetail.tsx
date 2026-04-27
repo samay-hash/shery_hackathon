@@ -149,8 +149,43 @@ export default function ProjectDetail({ projectId }: { projectId: string }) {
     }
   }
 
+  const [selectedNodeId, setSelectedNodeId] = useState<string>('fetch');
+
+  useEffect(() => {
+    if (activeDeployment) {
+      if (['queued', 'building', 'deploying'].includes(activeDeployment.status)) {
+        if (pipelineNodes[Math.max(0, currentPipelineIdx)]) {
+          setSelectedNodeId(pipelineNodes[Math.max(0, currentPipelineIdx)].id);
+        }
+      } else if (activeDeployment.status === 'live') {
+        setSelectedNodeId('live');
+      }
+    }
+  }, [currentPipelineIdx, activeDeployment?.status]);
+
+  const handleEnvFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const text = event.target?.result as string;
+      const newPairs = [...envPairs];
+      text.split('\n').forEach(line => {
+        const [key, ...val] = line.split('=');
+        if (key && key.trim() && !key.startsWith('#')) {
+          // Check if key already exists to avoid duplicates, but for simplicity we just append.
+          newPairs.push({ key: key.trim(), value: val.join('=').trim(), visible: false });
+        }
+      });
+      setEnvPairs(newPairs);
+    };
+    reader.readAsText(file);
+    // clear input
+    e.target.value = '';
+  };
+
   return (
-    <div className="project-detail-page">
+    <div className="project-detail-page canvas-layout">
       {/* Top Bar */}
       <div className="project-top-bar">
         <button className="btn btn-ghost" onClick={() => window.location.hash = '#/dashboard'}>
@@ -162,293 +197,294 @@ export default function ProjectDetail({ projectId }: { projectId: string }) {
           <span className="project-detail-repo mono">{selectedProject.repoFullName}</span>
         </div>
         <button
-          className={`btn btn-primary ${deploying ? 'btn-loading' : ''}`}
+          className={`btn btn-primary btn-lg ${deploying ? 'btn-loading' : ''}`}
           onClick={handleDeploy}
           disabled={deploying}
-          id="project-deploy-btn"
+          style={{ boxShadow: '0 0 20px rgba(0, 229, 255, 0.4)' }}
         >
-          {deploying ? <Loader2 size={16} className="animate-spin" /> : <Rocket size={16} />}
-          {deploying ? 'Deploying...' : 'Deploy'}
+          {deploying ? <Loader2 size={18} className="animate-spin" /> : <Rocket size={18} />}
+          {deploying ? 'Deploying...' : 'Deploy Now'}
         </button>
       </div>
 
-      {/* Node Graph Pipeline */}
-      {activeDeployment && (
-        <motion.div className="pipeline-wrapper" initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }}>
-          <div className="node-graph">
-            {pipelineNodes.map((node, i) => {
-              const NodeIcon = node.icon;
-              let stateClass = 'pending';
+      {/* Node Graph Pipeline Always Visible */}
+      <div className="pipeline-wrapper">
+        <div className="node-graph">
+          {pipelineNodes.map((node, i) => {
+            const NodeIcon = node.icon;
+            let stateClass = 'pending';
+            if (activeDeployment) {
               if (i < currentPipelineIdx) stateClass = 'done';
               else if (i === currentPipelineIdx) stateClass = isError ? 'error' : 'active';
+            }
 
-              const edgeClass = i < currentPipelineIdx ? 'done' : (i === currentPipelineIdx && !isError) ? 'active' : 'pending';
+            const edgeClass = activeDeployment ? (i < currentPipelineIdx ? 'done' : (i === currentPipelineIdx && !isError) ? 'active' : 'pending') : 'pending';
+            const isSelected = selectedNodeId === node.id;
 
-              return (
-                <div key={node.id} style={{ display: 'flex', alignItems: 'center' }}>
-                  <div className={`graph-node ${stateClass}`}>
-                    <div className="node-box">
-                      <NodeIcon size={22} />
-                    </div>
-                    <span className="node-label">{node.label}</span>
+            return (
+              <div key={node.id} style={{ display: 'flex', alignItems: 'center' }}>
+                <div 
+                  className={`graph-node ${stateClass} ${isSelected ? 'selected' : ''}`}
+                  onClick={() => setSelectedNodeId(node.id)}
+                  style={{ cursor: 'pointer' }}
+                >
+                  <div className="node-box" style={isSelected ? { borderColor: 'var(--accent-cyan)', boxShadow: '0 0 10px rgba(0, 229, 255, 0.3)' } : {}}>
+                    <NodeIcon size={22} />
                   </div>
-                  {i < pipelineNodes.length - 1 && (
-                    <div className={`graph-edge ${edgeClass}`} />
-                  )}
+                  <span className="node-label" style={isSelected ? { color: 'var(--accent-cyan)' } : {}}>{node.label}</span>
                 </div>
-              );
-            })}
-          </div>
-        </motion.div>
-      )}
-
-      {/* Tabs */}
-      <div className="project-tabs">
-        {(['overview', 'deployments', 'env', 'settings'] as const).map((tab) => (
-          <button
-            key={tab}
-            className={`tab-btn ${activeTab === tab ? 'active' : ''}`}
-            onClick={() => setActiveTab(tab)}
-          >
-            {tab === 'overview' && <Rocket size={15} />}
-            {tab === 'deployments' && <Clock size={15} />}
-            {tab === 'env' && <Key size={15} />}
-            {tab === 'settings' && <Settings size={15} />}
-            {tab.charAt(0).toUpperCase() + tab.slice(1)}
-          </button>
-        ))}
+                {i < pipelineNodes.length - 1 && (
+                  <div className={`graph-edge ${edgeClass}`} />
+                )}
+              </div>
+            );
+          })}
+        </div>
       </div>
 
-      {/* Tab Content */}
-      <AnimatePresence mode="wait">
-        <motion.div
-          key={activeTab}
-          initial={{ opacity: 0, y: 10 }}
-          animate={{ opacity: 1, y: 0 }}
-          exit={{ opacity: 0, y: -10 }}
-          transition={{ duration: 0.2 }}
-          className="tab-content"
-        >
-          {/* Overview Tab */}
-          {activeTab === 'overview' && (
-            <div className="overview-grid">
-              <div className="overview-info card">
-                <h3 className="card-section-title">Project Info</h3>
-                <div className="info-grid">
-                  <div className="info-item">
-                    <span className="info-label">Framework</span>
-                    <span className="info-value">{selectedProject.framework}</span>
+      {/* Canvas Workspace */}
+      <div className="canvas-workspace">
+        <AnimatePresence mode="wait">
+          <motion.div
+            key={selectedNodeId}
+            initial={{ opacity: 0, y: 10, scale: 0.98 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: -10, scale: 0.98 }}
+            transition={{ duration: 0.2 }}
+            className="canvas-panel"
+          >
+            {/* Git Fetch Canvas */}
+            {selectedNodeId === 'fetch' && (
+              <div className="canvas-grid">
+                <div className="card">
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 20 }}>
+                    <div className="icon-circle bg-cyan"><GitBranch size={20} /></div>
+                    <h3 className="card-section-title" style={{ margin: 0 }}>Repository Source</h3>
                   </div>
-                  <div className="info-item">
-                    <span className="info-label">Branch</span>
-                    <span className="info-value mono"><GitBranch size={13} /> {selectedProject.branch}</span>
-                  </div>
-                  <div className="info-item">
-                    <span className="info-label">Build Command</span>
-                    <span className="info-value mono">{selectedProject.buildCommand || 'auto'}</span>
-                  </div>
-                  <div className="info-item">
-                    <span className="info-label">Auto Deploy</span>
-                    <span className="info-value">{selectedProject.autoDeployEnabled ? '✅ Enabled' : '❌ Disabled'}</span>
-                  </div>
-                  {selectedProject.latestDeployment?.deployUrl && (
+                  <div className="info-grid">
                     <div className="info-item full-width">
-                      <span className="info-label">Live URL</span>
-                      <a href={selectedProject.latestDeployment.deployUrl} target="_blank" rel="noopener noreferrer" className="info-value info-link">
-                        <ExternalLink size={13} />
-                        {selectedProject.latestDeployment.deployUrl}
-                      </a>
+                      <span className="info-label">GitHub Repo</span>
+                      <span className="info-value mono">{selectedProject.repoUrl}</span>
                     </div>
-                  )}
+                  </div>
+                  <div className="settings-form" style={{ marginTop: 24 }}>
+                    <div className="form-group">
+                      <label>Branch</label>
+                      <input className="input" value={settingsForm.branch} onChange={(e) => setSettingsForm({ ...settingsForm, branch: e.target.value })} placeholder="main" />
+                    </div>
+                    <div className="form-group">
+                      <label>Root Directory</label>
+                      <input className="input" value={settingsForm.rootDir} onChange={(e) => setSettingsForm({ ...settingsForm, rootDir: e.target.value })} placeholder="./" />
+                      <span className="text-muted" style={{ fontSize: '0.8rem' }}>Set if your project is in a subfolder.</span>
+                    </div>
+                  </div>
+                  <button className="btn btn-primary" onClick={handleSaveSettings} style={{ marginTop: 20 }}>Save Repository Settings</button>
                 </div>
               </div>
+            )}
 
-              {/* Live Logs */}
-              <div className="terminal-container live-border">
-                <div className="terminal">
-                  <div className="terminal-header">
-                    <div className="terminal-dot red" />
-                    <div className="terminal-dot yellow" />
-                    <div className="terminal-dot green" />
-                    <span className="terminal-title">Build Output</span>
+            {/* Env Setup Canvas */}
+            {selectedNodeId === 'env' && (
+              <div className="canvas-grid single-col">
+                <div className="card">
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 24 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                      <div className="icon-circle bg-cyan"><FileCode size={20} /></div>
+                      <h3 className="card-section-title" style={{ margin: 0 }}>Environment Variables</h3>
+                    </div>
+                    <div style={{ display: 'flex', gap: 12 }}>
+                      <label className="btn btn-secondary btn-sm" style={{ cursor: 'pointer' }}>
+                        <FileCode size={14} /> Upload .env File
+                        <input type="file" accept=".env" style={{ display: 'none' }} onChange={handleEnvFileUpload} />
+                      </label>
+                      <button className="btn btn-secondary btn-sm" onClick={() => setEnvPairs([...envPairs, { key: '', value: '', visible: false }])}>
+                        <Plus size={14} /> Add Variable
+                      </button>
+                    </div>
                   </div>
-                  <div className="terminal-body">
-                    {deploymentLogs.length === 0 ? (
-                      <div className="terminal-line info">
-                        <span className="content">Waiting for deployment...</span>
+                  
+                  <div className="env-list">
+                    {envPairs.length === 0 ? (
+                      <div className="empty-state" style={{ minHeight: '150px' }}>
+                        <p>No environment variables added. Upload a .env file or add manually.</p>
                       </div>
                     ) : (
-                      deploymentLogs.map((log, i) => (
-                        <div key={i} className={`terminal-line ${log.level}`}>
-                          <span className="timestamp">{new Date(log.timestamp).toLocaleTimeString()}</span>
-                          <span className="content">{log.message}</span>
+                      envPairs.map((pair, i) => (
+                        <div key={i} className="env-row">
+                          <input
+                            className="input env-key"
+                            placeholder="KEY_NAME"
+                            value={pair.key}
+                            onChange={(e) => {
+                              const updated = [...envPairs];
+                              updated[i].key = e.target.value;
+                              setEnvPairs(updated);
+                            }}
+                          />
+                          <div className="env-value-wrapper">
+                            <input
+                              className="input env-value"
+                              type={pair.visible ? 'text' : 'password'}
+                              placeholder="value"
+                              value={pair.value}
+                              onChange={(e) => {
+                                const updated = [...envPairs];
+                                updated[i].value = e.target.value;
+                                setEnvPairs(updated);
+                              }}
+                            />
+                            <button className="btn btn-icon env-toggle" onClick={() => {
+                              const updated = [...envPairs];
+                              updated[i].visible = !updated[i].visible;
+                              setEnvPairs(updated);
+                            }}>
+                              {pair.visible ? <EyeOff size={14} /> : <Eye size={14} />}
+                            </button>
+                          </div>
+                          <button className="btn btn-icon btn-danger" onClick={() => setEnvPairs(envPairs.filter((_, j) => j !== i))}>
+                            <Trash2 size={14} />
+                          </button>
                         </div>
                       ))
                     )}
-                    <div ref={logEndRef} />
                   </div>
+                  <button className="btn btn-primary" onClick={handleSaveEnv} style={{ marginTop: 24 }}>
+                    Save Environment Variables
+                  </button>
                 </div>
               </div>
-            </div>
-          )}
+            )}
 
-          {/* Deployments Tab */}
-          {activeTab === 'deployments' && (
-            <div className="deployments-list">
-              {deployments.length === 0 ? (
-                <div className="empty-state">
-                  <Clock size={32} />
-                  <h3>No deployments yet</h3>
-                  <p>Click Deploy to create your first deployment.</p>
+            {/* Docker Build Canvas */}
+            {selectedNodeId === 'build' && (
+              <div className="canvas-grid" style={{ gridTemplateColumns: '300px 1fr' }}>
+                <div className="card">
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 20 }}>
+                    <div className="icon-circle bg-cyan"><Box size={20} /></div>
+                    <h3 className="card-section-title" style={{ margin: 0 }}>Build Config</h3>
+                  </div>
+                  <div className="settings-form">
+                    <div className="form-group">
+                      <label>Framework</label>
+                      <input className="input" value={selectedProject.framework} disabled />
+                    </div>
+                    <div className="form-group">
+                      <label>Build Command</label>
+                      <input className="input" value={settingsForm.buildCommand} onChange={(e) => setSettingsForm({ ...settingsForm, buildCommand: e.target.value })} placeholder="Auto-detected" />
+                    </div>
+                    <div className="form-group">
+                      <label>Output Directory</label>
+                      <input className="input" value={settingsForm.outputDir} onChange={(e) => setSettingsForm({ ...settingsForm, outputDir: e.target.value })} placeholder="Auto-detected" />
+                    </div>
+                    <button className="btn btn-primary" onClick={handleSaveSettings} style={{ marginTop: 10 }}>Save Config</button>
+                  </div>
                 </div>
-              ) : (
-                deployments.map((dep: Deployment) => (
-                  <motion.div
-                    key={dep._id}
-                    className="deployment-row card"
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                  >
-                    <div className="deploy-row-left">
-                      <StatusIcon status={dep.status} />
-                      <div>
-                        <div className="deploy-row-title">
-                          <span className="mono deploy-version">v{dep.version}</span>
-                          <span className={`badge badge-${dep.status === 'live' ? 'live' : dep.status === 'failed' ? 'failed' : 'building'}`}>
-                            {dep.status}
-                          </span>
+                
+                {/* Live Logs */}
+                <div className="terminal-container live-border" style={{ height: '100%' }}>
+                  <div className="terminal" style={{ height: '100%' }}>
+                    <div className="terminal-header">
+                      <div className="terminal-dot red" />
+                      <div className="terminal-dot yellow" />
+                      <div className="terminal-dot green" />
+                      <span className="terminal-title">Docker Build Logs</span>
+                    </div>
+                    <div className="terminal-body" style={{ minHeight: '300px', maxHeight: '500px' }}>
+                      {deploymentLogs.length === 0 ? (
+                        <div className="terminal-line info">
+                          <span className="content">Waiting for deployment to start...</span>
                         </div>
-                        <p className="deploy-row-commit mono">{dep.commitHash?.slice(0, 7)} — {dep.commitMessage || 'No message'}</p>
-                      </div>
-                    </div>
-                    <div className="deploy-row-right">
-                      <span className="deploy-row-time">{timeAgo(dep.createdAt)}</span>
-                      {dep.buildDuration > 0 && (
-                        <span className="deploy-row-duration">{dep.buildDuration}s</span>
+                      ) : (
+                        deploymentLogs.map((log, i) => (
+                          <div key={i} className={`terminal-line ${log.level}`}>
+                            <span className="timestamp">{new Date(log.timestamp).toLocaleTimeString()}</span>
+                            <span className="content">{log.message}</span>
+                          </div>
+                        ))
                       )}
-                      {dep.status === 'live' && dep.deployUrl && (
-                        <a href={dep.deployUrl} target="_blank" rel="noopener noreferrer" className="btn btn-ghost btn-sm">
-                          <ExternalLink size={14} />
-                        </a>
-                      )}
-                      {dep.status !== 'live' && dep.status !== 'building' && (
-                        <button className="btn btn-ghost btn-sm" onClick={() => handleRollback(dep._id)} title="Rollback to this version">
-                          <RotateCcw size={14} />
-                        </button>
-                      )}
+                      <div ref={logEndRef} />
                     </div>
-                  </motion.div>
-                ))
-              )}
-            </div>
-          )}
-
-          {/* Environment Variables Tab */}
-          {activeTab === 'env' && (
-            <div className="env-section">
-              <div className="env-header">
-                <h3 className="card-section-title">Environment Variables</h3>
-                <button className="btn btn-secondary btn-sm" onClick={() => setEnvPairs([...envPairs, { key: '', value: '', visible: false }])}>
-                  <Plus size={14} /> Add Variable
-                </button>
-              </div>
-              <div className="env-list">
-                {envPairs.map((pair, i) => (
-                  <div key={i} className="env-row">
-                    <input
-                      className="input env-key"
-                      placeholder="KEY_NAME"
-                      value={pair.key}
-                      onChange={(e) => {
-                        const updated = [...envPairs];
-                        updated[i].key = e.target.value;
-                        setEnvPairs(updated);
-                      }}
-                    />
-                    <div className="env-value-wrapper">
-                      <input
-                        className="input env-value"
-                        type={pair.visible ? 'text' : 'password'}
-                        placeholder="value"
-                        value={pair.value}
-                        onChange={(e) => {
-                          const updated = [...envPairs];
-                          updated[i].value = e.target.value;
-                          setEnvPairs(updated);
-                        }}
-                      />
-                      <button className="btn btn-icon env-toggle" onClick={() => {
-                        const updated = [...envPairs];
-                        updated[i].visible = !updated[i].visible;
-                        setEnvPairs(updated);
-                      }}>
-                        {pair.visible ? <EyeOff size={14} /> : <Eye size={14} />}
-                      </button>
-                    </div>
-                    <button className="btn btn-icon btn-danger" onClick={() => setEnvPairs(envPairs.filter((_, j) => j !== i))}>
-                      <Trash2 size={14} />
-                    </button>
-                  </div>
-                ))}
-              </div>
-              <button className="btn btn-primary" onClick={handleSaveEnv} style={{ marginTop: 16 }}>
-                Save Environment Variables
-              </button>
-            </div>
-          )}
-
-          {/* Settings Tab */}
-          {activeTab === 'settings' && (
-            <div className="settings-section">
-              <div className="card">
-                <h3 className="card-section-title">Build Settings</h3>
-                <div className="settings-form">
-                  <div className="form-group">
-                    <label>Root Directory</label>
-                    <input className="input" value={settingsForm.rootDir} onChange={(e) => setSettingsForm({ ...settingsForm, rootDir: e.target.value })} placeholder="./ (e.g. frontend)" />
-                    <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>Leave as "./" unless your project is in a subfolder (e.g. monorepo).</span>
-                  </div>
-                  <div className="form-group">
-                    <label>Build Command</label>
-                    <input className="input" value={settingsForm.buildCommand} onChange={(e) => setSettingsForm({ ...settingsForm, buildCommand: e.target.value })} placeholder="npm run build (leave empty for auto)" />
-                  </div>
-                  <div className="form-group">
-                    <label>Start Command</label>
-                    <input className="input" value={settingsForm.startCommand} onChange={(e) => setSettingsForm({ ...settingsForm, startCommand: e.target.value })} placeholder="npm start (leave empty for auto)" />
-                  </div>
-                  <div className="form-group">
-                    <label>Output Directory</label>
-                    <input className="input" value={settingsForm.outputDir} onChange={(e) => setSettingsForm({ ...settingsForm, outputDir: e.target.value })} placeholder="dist or .next" />
-                  </div>
-                  <div className="form-group">
-                    <label>Branch</label>
-                    <input className="input" value={settingsForm.branch} onChange={(e) => setSettingsForm({ ...settingsForm, branch: e.target.value })} placeholder="main" />
                   </div>
                 </div>
-                <button 
-                  className={`btn btn-primary ${savingSettings ? 'btn-loading' : ''}`} 
-                  style={{ marginTop: 20 }} 
-                  onClick={handleSaveSettings}
-                  disabled={savingSettings}
-                >
-                  {savingSettings ? <Loader2 size={16} className="animate-spin" /> : null}
-                  {savingSettings ? 'Saving...' : 'Save Settings'}
-                </button>
               </div>
+            )}
 
-              <div className="card danger-zone">
-                <h3 className="card-section-title" style={{ color: 'var(--status-failed)' }}>Danger Zone</h3>
-                <p style={{ color: 'var(--text-secondary)', fontSize: '0.85rem', marginBottom: 16 }}>
-                  Once you delete a project, there is no going back.
-                </p>
-                <button className="btn btn-danger">
-                  <Trash2 size={14} /> Delete Project
-                </button>
+            {/* Deploy Run Canvas */}
+            {selectedNodeId === 'run' && (
+              <div className="canvas-grid single-col">
+                <div className="card">
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 20 }}>
+                    <div className="icon-circle bg-cyan"><Server size={20} /></div>
+                    <h3 className="card-section-title" style={{ margin: 0 }}>Deployment History</h3>
+                  </div>
+                  <div className="deployments-list">
+                    {deployments.length === 0 ? (
+                      <div className="empty-state">
+                        <Clock size={32} />
+                        <h3>No deployments yet</h3>
+                      </div>
+                    ) : (
+                      deployments.map((dep: Deployment) => (
+                        <motion.div key={dep._id} className="deployment-row card" initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
+                          <div className="deploy-row-left">
+                            <StatusIcon status={dep.status} />
+                            <div>
+                              <div className="deploy-row-title">
+                                <span className="mono deploy-version">v{dep.version}</span>
+                                <span className={`badge badge-${dep.status === 'live' ? 'live' : dep.status === 'failed' ? 'failed' : 'building'}`}>
+                                  {dep.status}
+                                </span>
+                              </div>
+                              <p className="deploy-row-commit mono">{dep.commitHash?.slice(0, 7)} — {dep.commitMessage || 'No message'}</p>
+                            </div>
+                          </div>
+                          <div className="deploy-row-right">
+                            <span className="deploy-row-time">{timeAgo(dep.createdAt)}</span>
+                            {dep.status !== 'live' && dep.status !== 'building' && (
+                              <button className="btn btn-ghost btn-sm" onClick={() => handleRollback(dep._id)} title="Rollback to this version">
+                                <RotateCcw size={14} /> Rollback
+                              </button>
+                            )}
+                          </div>
+                        </motion.div>
+                      ))
+                    )}
+                  </div>
+                </div>
               </div>
-            </div>
-          )}
-        </motion.div>
-      </AnimatePresence>
+            )}
+
+            {/* Live Proxy Canvas */}
+            {selectedNodeId === 'live' && (
+              <div className="canvas-grid single-col">
+                <div className="card" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '60px 20px', textAlign: 'center' }}>
+                  <div className="icon-circle bg-cyan" style={{ width: 80, height: 80, marginBottom: 24, boxShadow: '0 0 30px rgba(0, 229, 255, 0.4)' }}>
+                    <Globe size={40} />
+                  </div>
+                  <h2 style={{ fontSize: '2rem', marginBottom: 12 }}>Your project is Live!</h2>
+                  <p className="text-muted" style={{ marginBottom: 30, maxWidth: 500 }}>
+                    Traffic is now being routed through the reverse proxy directly to your isolated Docker container.
+                  </p>
+                  {selectedProject.latestDeployment?.deployUrl ? (
+                    <a 
+                      href={selectedProject.latestDeployment.deployUrl} 
+                      target="_blank" 
+                      rel="noopener noreferrer" 
+                      className="btn btn-primary btn-lg"
+                      style={{ fontSize: '1.2rem', padding: '16px 32px' }}
+                    >
+                      <ExternalLink size={20} />
+                      Visit {selectedProject.latestDeployment.deployUrl.replace('http://', '')}
+                    </a>
+                  ) : (
+                    <div className="badge badge-building">Deploying to get URL...</div>
+                  )}
+                </div>
+              </div>
+            )}
+          </motion.div>
+        </AnimatePresence>
+      </div>
     </div>
   );
 }

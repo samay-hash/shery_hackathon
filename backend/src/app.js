@@ -19,12 +19,12 @@ const { setupSocket } = require('./socket/socketHandler');
 const app = express();
 const server = http.createServer(app);
 
-// Socket.IO
+// Socket.IO — allow all origins so EC2 IP works without rebuilding
 const io = new Server(server, {
   cors: {
-    origin: process.env.FRONTEND_URL || 'http://localhost:5173',
+    origin: '*',
     methods: ['GET', 'POST'],
-    credentials: true,
+    credentials: false,
   },
 });
 
@@ -35,7 +35,7 @@ app.set('io', io);
 app.use(helmet({ contentSecurityPolicy: false }));
 app.use(morgan('dev'));
 app.use(cors({
-  origin: process.env.FRONTEND_URL || 'http://localhost:5173',
+  origin: (origin, callback) => callback(null, true),
   credentials: true,
 }));
 app.use(express.json());

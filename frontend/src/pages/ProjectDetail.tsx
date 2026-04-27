@@ -100,9 +100,9 @@ export default function ProjectDetail({ projectId }: { projectId: string }) {
 
       <div className="canvas-viewport" style={{ transform: `translate(${position.x}px, ${position.y}px) scale(0.85)` }}>
 
-        <Wire id="w1" start={{x: 370, y: 360}} end={{x: 450, y: 210}} status={stage > 0 ? (stage > 1 ? 'done' : 'active') : 'idle'} />
-        <Wire id="w2" start={{x: 770, y: 210}} end={{x: 450, y: 510}} status={stage > 1 ? (stage > 2 ? 'done' : 'active') : 'idle'} />
-        <Wire id="w3" start={{x: 770, y: 510}} end={{x: 850, y: 360}} status={stage > 2 ? 'done' : 'idle'} />
+        <Wire id="w1" start={{x: 370, y: 300}} end={{x: 450, y: 500}} status={stage > 0 ? (stage > 1 ? 'done' : 'active') : 'idle'} />
+        <Wire id="w2" start={{x: 770, y: 500}} end={{x: 850, y: 300}} status={stage > 1 ? (stage > 2 ? 'done' : 'active') : 'idle'} />
+        <Wire id="w3" start={{x: 1170, y: 300}} end={{x: 1250, y: 500}} status={stage > 2 ? 'done' : 'idle'} />
 
 
         <div className={`wf-node node-git ${stage >= 0 ? (stage > 0 ? 'done' : 'active') : ''}`}>

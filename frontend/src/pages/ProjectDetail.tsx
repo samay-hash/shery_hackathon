@@ -1,19 +1,25 @@
 import { useEffect, useState, useRef } from 'react';
-
-import { Cpu, Box, Globe, Play, Square, ExternalLink, RefreshCw } from 'lucide-react';
+import { Play, Square, ExternalLink, RefreshCw } from 'lucide-react';
 import { useDeployment } from '../hooks/useDeployment';
 import { useProjects } from '../hooks/useProjects';
 import '../styles/project-detail.css';
 
-
 const Wire = ({ id, start, end, status }: { id: string, start: {x:number, y:number}, end: {x:number, y:number}, status: 'idle'|'active'|'done' }) => {
-  const dx = Math.abs(end.x - start.x) * 0.5;
-  const path = `M ${start.x} ${start.y} C ${start.x + dx} ${start.y}, ${end.x - dx} ${end.y}, ${end.x} ${end.y}`;
+  let path = '';
+  if (start.x === end.x) {
+    // Vertical line
+    const dy = Math.abs(end.y - start.y) * 0.5;
+    path = `M ${start.x} ${start.y} C ${start.x} ${start.y + dy}, ${end.x} ${end.y - dy}, ${end.x} ${end.y}`;
+  } else {
+    // Horizontal line
+    const dx = Math.abs(end.x - start.x) * 0.5;
+    path = `M ${start.x} ${start.y} C ${start.x + dx} ${start.y}, ${end.x - dx} ${end.y}, ${end.x} ${end.y}`;
+  }
   return (
     <svg className="canvas-wires" width="100%" height="100%">
       <path d={path} className={`wire-path ${status}`} id={`wire-${id}`} />
       {status === 'active' && (
-        <circle r="4" className="wire-dot">
+        <circle r="3" className="wire-dot">
           <animateMotion dur="2s" repeatCount="indefinite" path={path} />
         </circle>
       )}
@@ -25,9 +31,7 @@ export default function ProjectDetail({ projectId }: { projectId: string }) {
   const { projects } = useProjects();
   const { deploymentLogs, triggerDeploy, stopDeployment } = useDeployment();
   const [deploymentStatus, setDeploymentStatus] = useState<'idle'|'building'|'live'|'failed'>('idle');
-  const [aiLogs, setAiLogs] = useState<string[]>(['Waiting for deployment to start...']);
   
-  // Canvas panning state
   const [position, setPosition] = useState({ x: 0, y: 0 });
   const [isDragging, setIsDragging] = useState(false);
   const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
@@ -36,47 +40,37 @@ export default function ProjectDetail({ projectId }: { projectId: string }) {
     setIsDragging(true);
     setDragStart({ x: e.clientX - position.x, y: e.clientY - position.y });
   };
-
   const handleMouseMove = (e: React.MouseEvent) => {
-    if (isDragging) {
-      setPosition({ x: e.clientX - dragStart.x, y: e.clientY - dragStart.y });
-    }
+    if (isDragging) setPosition({ x: e.clientX - dragStart.x, y: e.clientY - dragStart.y });
   };
-
-  const handleMouseUp = () => {
-    setIsDragging(false);
-  };
+  const handleMouseUp = () => setIsDragging(false);
   
   const project = projects.find(p => p._id === projectId);
   const terminalRef = useRef<HTMLDivElement>(null);
 
-
   useEffect(() => {
-    if (terminalRef.current) {
-      terminalRef.current.scrollTop = terminalRef.current.scrollHeight;
-    }
+    if (terminalRef.current) terminalRef.current.scrollTop = terminalRef.current.scrollHeight;
   }, [deploymentLogs]);
 
   let stage = 0;
   if (deploymentStatus === 'building') {
-    if (deploymentLogs.some((l: any) => l.message.includes('FROM node'))) stage = 2;
-    else if (deploymentLogs.some((l: any) => l.message.includes('Cloned'))) stage = 1;
-    else stage = 0;
+    if (deploymentLogs.length > 0) stage = 1;
+    if (deploymentLogs.some((l: any) => l.message.includes('Cloning'))) stage = 1;
+    if (deploymentLogs.some((l: any) => l.message.includes('Detected framework'))) stage = 2;
+    if (deploymentLogs.some((l: any) => l.message.includes('Generating Dockerfile'))) stage = 3;
+    if (deploymentLogs.some((l: any) => l.message.includes('Building Docker image'))) stage = 4;
+    if (deploymentLogs.some((l: any) => l.message.includes('npm install'))) stage = 5;
+    if (deploymentLogs.some((l: any) => l.message.includes('npm run build') || l.message.includes('exporting layers'))) stage = 6;
+    if (deploymentLogs.some((l: any) => l.message.includes('exporting to image') || l.message.includes('naming to docker'))) stage = 7;
+    if (deploymentLogs.some((l: any) => l.message.includes('Starting container'))) stage = 8;
+    if (deploymentLogs.some((l: any) => l.message.includes('Container started'))) stage = 9;
   } else if (deploymentStatus === 'live') {
-    stage = 3;
+    stage = 10;
   }
-
-
-  useEffect(() => {
-    if (stage === 1 && aiLogs.length === 1) {
-      setAiLogs(['Analyzing repository structure...', 'Detected React + Vite framework.', 'Optimizing Dockerfile...', 'Scan complete! Passing to builder.']);
-    }
-  }, [stage, aiLogs]);
 
   const handleDeploy = async () => {
     if (!project) return;
     setDeploymentStatus('building');
-    setAiLogs(['Waiting for code fetch...']);
     try {
       await triggerDeploy(project._id);
       setDeploymentStatus('live');
@@ -85,111 +79,86 @@ export default function ProjectDetail({ projectId }: { projectId: string }) {
     }
   };
 
-  if (!project) return <div className="p-8 text-white">Loading node architecture...</div>;
+  if (!project) return <div className="p-8 text-white">Loading pipeline...</div>;
+
+  const nodes = [
+    { id: 1, name: 'Fetch Source', pos: 'n1', pR: true, logs: stage > 0 ? ['git clone ' + project.repoFullName] : [] },
+    { id: 2, name: 'AI Scanner', pos: 'n2', pL: true, pR: true, logs: stage > 1 ? ['Detected Monorepo', 'Found framework'] : [] },
+    { id: 3, name: 'Docker Config', pos: 'n3', pL: true, pR: true, logs: stage > 2 ? ['Generating multi-stage Dockerfile...'] : [] },
+    { id: 4, name: 'Engine Init', pos: 'n4', pL: true, pR: true, logs: stage > 3 ? ['Booting Docker Daemon...'] : [] },
+    { id: 5, name: 'Deps Install', pos: 'n5', pL: true, pB: true, logs: stage > 4 ? ['RUN npm install'] : [] },
+    { id: 6, name: 'Artifact Build', pos: 'n6', pR: true, pT: true, logs: stage > 5 ? ['RUN npm run build', 'Optimizing chunks...'] : [] },
+    { id: 7, name: 'Image Export', pos: 'n7', pL: true, pR: true, logs: stage > 6 ? ['Exporting layers...', 'Saving image...'] : [] },
+    { id: 8, name: 'Provisioning', pos: 'n8', pL: true, pR: true, logs: stage > 7 ? ['Finding free port...', 'Cleaning old containers...'] : [] },
+    { id: 9, name: 'Proxy Route', pos: 'n9', pL: true, pR: true, logs: stage > 8 ? ['docker run -d', 'Mapping nip.io domain'] : [] },
+    { id: 10, name: 'Live', pos: 'n10', pL: true, logs: stage > 9 ? ['Traffic routing started.', 'SSL Ready.'] : [] }
+  ];
 
   return (
     <div 
       className="canvas-page" 
-      onMouseDown={handleMouseDown}
-      onMouseMove={handleMouseMove}
-      onMouseUp={handleMouseUp}
-      onMouseLeave={handleMouseUp}
+      onMouseDown={handleMouseDown} onMouseMove={handleMouseMove}
+      onMouseUp={handleMouseUp} onMouseLeave={handleMouseUp}
       style={{ cursor: isDragging ? 'grabbing' : 'grab' }}
     >
       <div className="canvas-bg-pattern" style={{ transform: `translate(${position.x}px, ${position.y}px)` }} />
+      <div className="canvas-viewport" style={{ transform: `translate(${position.x}px, ${position.y}px)` }}>
+        
+        {/* Horizontal Wires Row 1 */}
+        <Wire id="w1" start={{x:290, y:190}} end={{x:340, y:190}} status={stage > 1 ? 'done' : stage === 1 ? 'active' : 'idle'} />
+        <Wire id="w2" start={{x:580, y:190}} end={{x:630, y:190}} status={stage > 2 ? 'done' : stage === 2 ? 'active' : 'idle'} />
+        <Wire id="w3" start={{x:870, y:190}} end={{x:920, y:190}} status={stage > 3 ? 'done' : stage === 3 ? 'active' : 'idle'} />
+        <Wire id="w4" start={{x:1160, y:190}} end={{x:1210, y:190}} status={stage > 4 ? 'done' : stage === 4 ? 'active' : 'idle'} />
+        
+        {/* Vertical Wire */}
+        <Wire id="w5" start={{x:1330, y:280}} end={{x:1330, y:380}} status={stage > 5 ? 'done' : stage === 5 ? 'active' : 'idle'} />
+        
+        {/* Horizontal Wires Row 2 (Right to Left) */}
+        <Wire id="w6" start={{x:1210, y:470}} end={{x:1160, y:470}} status={stage > 6 ? 'done' : stage === 6 ? 'active' : 'idle'} />
+        <Wire id="w7" start={{x:920, y:470}} end={{x:870, y:470}} status={stage > 7 ? 'done' : stage === 7 ? 'active' : 'idle'} />
+        <Wire id="w8" start={{x:630, y:470}} end={{x:580, y:470}} status={stage > 8 ? 'done' : stage === 8 ? 'active' : 'idle'} />
+        <Wire id="w9" start={{x:340, y:470}} end={{x:290, y:470}} status={stage > 9 ? 'done' : stage === 9 ? 'active' : 'idle'} />
 
-      <div className="canvas-viewport" style={{ transform: `translate(${position.x}px, ${position.y}px) scale(0.85)` }}>
-
-        <Wire id="w1" start={{x: 370, y: 300}} end={{x: 450, y: 500}} status={stage > 0 ? (stage > 1 ? 'done' : 'active') : 'idle'} />
-        <Wire id="w2" start={{x: 770, y: 500}} end={{x: 850, y: 300}} status={stage > 1 ? (stage > 2 ? 'done' : 'active') : 'idle'} />
-        <Wire id="w3" start={{x: 1170, y: 300}} end={{x: 1250, y: 500}} status={stage > 2 ? 'done' : 'idle'} />
-
-
-        <div className={`wf-node node-git ${stage >= 0 ? (stage > 0 ? 'done' : 'active') : ''}`}>
-          <div className="wf-node-header">
-            <div className="wf-node-icon">📦</div>
-            <div className="wf-node-title">Source Node</div>
-            <div className="wf-node-status">{stage > 0 ? 'FETCHED' : 'READY'}</div>
-          </div>
-          <div className="wf-node-body">
-            <div className="text-sm text-gray-400 font-mono mb-2">{project.repoFullName}</div>
-            <div className="wf-terminal">
-              {stage > 0 ? <div className="wf-terminal-line success-text">&gt; Successfully cloned repository.</div> : <div className="wf-terminal-line">&gt; Waiting for trigger...</div>}
+        {nodes.map((n) => (
+          <div key={n.id} className={`wf-node ${n.pos} ${stage >= n.id ? (stage > n.id ? 'done' : 'active') : ''}`}>
+            {n.pL && <div className="port left" />}
+            {n.pR && <div className="port right" />}
+            {n.pT && <div className="port top" />}
+            {n.pB && <div className="port bottom" />}
+            
+            <div className="wf-node-header">
+              <div className="wf-node-icon">{n.id}</div>
+              <div className="wf-node-title">{n.name}</div>
+            </div>
+            <div className="wf-node-body">
+              <div className="wf-terminal" ref={n.id === stage ? terminalRef : null}>
+                {n.id === stage && deploymentLogs.length > 0 ? (
+                  deploymentLogs.slice(-3).map((log: any, i: number) => (
+                    <div key={i} className="wf-terminal-line active-text">&gt; {log.message.substring(0, 40)}</div>
+                  ))
+                ) : n.logs.length > 0 ? (
+                  n.logs.map((log, i) => <div key={i} className="wf-terminal-line success-text">&gt; {log}</div>)
+                ) : (
+                  <div className="wf-terminal-line">&gt; Waiting...</div>
+                )}
+              </div>
+              {n.id === 10 && stage === 10 && project.latestDeployment?.deployUrl && (
+                <a href={project.latestDeployment.deployUrl} target="_blank" rel="noreferrer" className="btn btn-primary btn-sm mt-2">
+                  <ExternalLink size={12} /> Open URL
+                </a>
+              )}
             </div>
           </div>
-          <div className="port right" />
-        </div>
-
-
-        <div className={`wf-node node-ai ${stage >= 1 ? (stage > 1 ? 'done' : 'active') : ''}`}>
-          <div className="port left" />
-          <div className="wf-node-header">
-            <div className="wf-node-icon"><Cpu size={14} /></div>
-            <div className="wf-node-title">AI Engine</div>
-            <div className="wf-node-status">{stage > 1 ? 'SCANNED' : (stage === 1 ? 'SCANNING' : 'IDLE')}</div>
-          </div>
-          <div className="wf-node-body">
-            <div className="wf-terminal">
-              {aiLogs.map((log, i) => <div key={i} className={`wf-terminal-line ${stage > 1 ? 'success-text' : 'active-text'}`}>&gt; {log}</div>)}
-            </div>
-          </div>
-          <div className="port right" />
-        </div>
-
-
-        <div className={`wf-node node-build ${stage >= 2 ? (stage > 2 ? 'done' : 'active') : ''}`}>
-          <div className="port left" />
-          <div className="wf-node-header">
-            <div className="wf-node-icon"><Box size={14} /></div>
-            <div className="wf-node-title">Builder</div>
-            <div className="wf-node-status">{stage > 2 ? 'BUILT' : (stage === 2 ? 'BUILDING' : 'IDLE')}</div>
-          </div>
-          <div className="wf-node-body">
-            <div className="wf-terminal" ref={terminalRef}>
-              {deploymentLogs.length === 0 && <div className="wf-terminal-line">&gt; Waiting for instructions...</div>}
-              {deploymentLogs.map((log: any, i: number) => (
-                <div key={i} className={`wf-terminal-line ${log.level === 'error' ? 'text-red-500' : ''}`}>
-                  {log.message}
-                </div>
-              ))}
-            </div>
-          </div>
-          <div className="port right" />
-        </div>
-
-
-        <div className={`wf-node node-run ${stage === 3 ? 'done active' : ''}`}>
-          <div className="port left" />
-          <div className="wf-node-header">
-            <div className="wf-node-icon"><Globe size={14} /></div>
-            <div className="wf-node-title">Live Node</div>
-            <div className="wf-node-status">{stage === 3 ? 'ONLINE' : 'OFFLINE'}</div>
-          </div>
-          <div className="wf-node-body">
-            <div className="text-sm text-gray-400 mb-4 text-center mt-4">
-              {stage === 3 ? 'Traffic is flowing smoothly.' : 'Waiting for container...'}
-            </div>
-            {stage === 3 && project.latestDeployment?.deployUrl && (
-              <a href={project.latestDeployment.deployUrl} target="_blank" rel="noreferrer" className="btn btn-primary w-full glow">
-                <ExternalLink size={16} /> Open App
-              </a>
-            )}
-          </div>
-        </div>
+        ))}
       </div>
 
-
       <div className="canvas-controls">
-        <button 
-          className="btn btn-primary btn-lg glow" 
-          onClick={handleDeploy}
-          disabled={deploymentStatus === 'building'}
-        >
+        <button className="btn btn-primary btn-lg glow" onClick={handleDeploy} disabled={deploymentStatus === 'building'}>
           {deploymentStatus === 'building' ? <RefreshCw className="animate-spin" size={18} /> : <Play size={18} fill="currentColor" />}
-          {deploymentStatus === 'building' ? 'Deploying...' : 'Trigger Pipeline'}
+          {deploymentStatus === 'building' ? 'Pipeline Running...' : 'Start 10-Step Pipeline'}
         </button>
         <button className="btn btn-danger btn-lg" onClick={() => project.latestDeployment && stopDeployment(project.latestDeployment._id)}>
-          <Square size={18} fill="currentColor" /> Stop
+          <Square size={18} fill="currentColor" /> Force Stop
         </button>
       </div>
     </div>

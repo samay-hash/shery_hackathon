@@ -18,6 +18,8 @@ services:
     restart: unless-stopped
     networks:
       - deployx-net
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
 
   # Redis for BullMQ Queue
   redis:

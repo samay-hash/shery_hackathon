@@ -24,6 +24,22 @@ function initAI() {
 // Initialize on load
 initAI();
 
+const axios = require('axios');
+
+async function callGroqFallback(prompt) {
+  const GROQ_API_KEY = process.env.GROQ_API_KEY;
+  if (!GROQ_API_KEY) throw new Error('No Groq key available');
+  
+  const response = await axios.post('https://api.groq.com/openai/v1/chat/completions', {
+    model: 'llama-3.3-70b-versatile',
+    messages: [{ role: 'user', content: prompt }],
+    temperature: 0.1
+  }, {
+    headers: { 'Authorization': `Bearer ${GROQ_API_KEY}` }
+  });
+  return response.data.choices[0].message.content;
+}
+
 /**
  * Analyze build error logs and suggest fixes
  */
@@ -36,8 +52,7 @@ async function analyzeBuildError(logs, framework, projectName) {
 
   if (!model) return fallbackErrorAnalysis(errorLines, framework);
 
-  try {
-    const prompt = `You are a DevOps AI assistant for "DeployX".
+  const prompt = `You are a DevOps AI assistant for "DeployX".
 A deployment for project "${projectName}" (framework: ${framework}) just FAILED.
 Here are the error logs:
 \`\`\`
@@ -50,15 +65,23 @@ Analyze the error and provide:
 Respond in JSON format: {"rootCause": "...", "fixSteps": ["step1", "step2"], "patch": {"file": "package.json", "search": "...", "replace": "..."}}
 If no patch is possible, omit the patch field.`;
 
+  let text = '';
+  try {
     const result = await model.generateContent(prompt);
-    const text = result.response.text();
-    const jsonMatch = text.match(/\{[\s\S]*\}/);
-    if (jsonMatch) return JSON.parse(jsonMatch[0]);
-    return { rootCause: text.slice(0, 200), fixSteps: [], confidence: 'low' };
+    text = result.response.text();
   } catch (err) {
-    console.error('AI analysis error:', err.message);
-    return fallbackErrorAnalysis(errorLines, framework);
+    console.error('Gemini AI failed, falling back to Groq:', err.message);
+    try {
+      text = await callGroqFallback(prompt);
+    } catch (groqErr) {
+      console.error('Groq AI failed as well:', groqErr.message);
+      return fallbackErrorAnalysis(errorLines, framework);
+    }
   }
+
+  const jsonMatch = text.match(/\{[\s\S]*\}/);
+  if (jsonMatch) return JSON.parse(jsonMatch[0]);
+  return { rootCause: text.slice(0, 200), fixSteps: [], confidence: 'low' };
 }
 
 /**

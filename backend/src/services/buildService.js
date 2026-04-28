@@ -135,7 +135,7 @@ async function attemptSelfHealing(errorLogs, buildDir, project, deployment, io) 
     const analysis = await analyzeBuildError(errorLogs, project.framework, project.name);
     await log(io, deployment, 'info', `🧠 AI Diagnosis: ${analysis.rootCause}`);
     
-    // Check if AI provided a patch payload (Assuming analyzeBuildError is updated to return `patch`)
+    // Check if AI provided a patch payload
     if (analysis.patch && analysis.patch.file && analysis.patch.replace) {
       const filePath = path.join(buildDir, analysis.patch.file);
       if (fs.existsSync(filePath)) {
@@ -146,8 +146,14 @@ async function attemptSelfHealing(errorLogs, buildDir, project, deployment, io) 
         return true; // Patch applied
       }
     }
+
+    if (analysis.fixSteps && analysis.fixSteps.length > 0) {
+      await log(io, deployment, 'info', `💡 AI Suggestion: ${analysis.fixSteps.join(' -> ')}`);
+    }
+
     return false; // Could not heal
   } catch (e) {
+    await log(io, deployment, 'error', `🧠 AI Engine failed: ${e.message}`);
     return false;
   }
 }

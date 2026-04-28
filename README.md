@@ -1,12 +1,8 @@
-# <img src="https://raw.githubusercontent.com/Tarikul-Islam-Anik/Animated-Fluent-Emojis/master/Emojis/Travel%20and%20Places/Rocket.png" width="50" /> DeployX: The Intelligent Cloud Engine
+# 🚀 DeployX: The Intelligent Cloud Engine
 
 <p align="center">
-  <img src="https://capsule-render.vercel.app/render?type=waving&color=00E5FF&height=220&section=header&text=DeployX&fontSize=90&animation=fadeIn&fontAlignY=35" width="100%" />
-</p>
-
-<p align="center">
-  <img src="https://img.shields.io/badge/Status-Hackathon--Production-success?style=for-the-badge" />
-  <img src="https://img.shields.io/badge/AI-Gemini--Powered-blue?style=for-the-badge&logo=google-gemini" />
+  <img src="https://img.shields.io/badge/DeployX-AI--Deployment--PaaS-00E5FF?style=for-the-badge&logo=rocket" />
+  <img src="https://img.shields.io/badge/Powered%20By-Gemini%202.0-blue?style=for-the-badge&logo=google-gemini" />
   <img src="https://img.shields.io/badge/Infrastructure-Docker--Native-2496ED?style=for-the-badge&logo=docker" />
 </p>
 
@@ -70,13 +66,44 @@ graph TD
 
 ---
 
+## 🚀 Getting Started (Installation)
+
+Follow these steps to run DeployX on your own server:
+
+### 1. Prerequisites
+- Docker & Docker Compose
+- Node.js v18+
+- GitHub OAuth Credentials
+
+### 2. Setup Environment Variables
+Create a `.env` file in the `backend` directory:
+```env
+MONGODB_URI=your_mongodb_uri
+GEMINI_API_KEY=your_gemini_key
+GROQ_API_KEY=your_groq_key
+GITHUB_CLIENT_ID=...
+GITHUB_CLIENT_SECRET=...
+FRONTEND_URL=http://your-ip:5173
+```
+
+### 3. Run with Docker Compose
+From the root directory, run:
+```bash
+docker-compose up -d --build
+```
+This will start:
+- **Frontend**: Dashboard on port `5173`
+- **Backend**: API on port `3001`
+- **Proxy**: Routing engine on port `8000`
+- **Redis**: Queue management
+
+---
+
 ## 🛠️ Built With
 
-- **Frontend**: React, Framer Motion (for smooth animations).
-- **Backend**: Node.js, Express, BullMQ (Task Queue).
-- **Database**: MongoDB (Metadata), Redis (Queue state).
-- **Core**: Docker, Dockerode (Container management).
-- **Intelligence**: Gemini 2.0 Flash API (Primary), Groq Llama 3 (Fallback).
+- **Frontend**: React, Framer Motion, Lucide Icons.
+- **Backend**: Node.js, Express, BullMQ, Dockerode.
+- **AI**: Gemini 2.0 Flash & Groq Fallback.
 
 ---
 

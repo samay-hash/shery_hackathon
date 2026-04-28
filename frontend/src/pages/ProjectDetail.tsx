@@ -150,7 +150,7 @@ export default function ProjectDetail({ projectId }: { projectId: string }) {
                   {nodeIsActive && logsForThisNode.length > 0 ? (
                     logsForThisNode.map((log: any, i: number) => (
                       <div key={i} className={`wf-terminal-line ${log.level === 'error' ? 'error-text' : 'active-text'}`}>
-                        &gt; {log.message.substring(0, 45)}
+                        &gt; {log.message}
                       </div>
                     ))
                   ) : nodeIsDone ? (
@@ -159,8 +159,8 @@ export default function ProjectDetail({ projectId }: { projectId: string }) {
                     <div className="wf-terminal-line">&gt; Waiting...</div>
                   )}
                 </div>
-                {n.id === 10 && stage === 10 && (project.latestDeployment as any)?.deployUrl && (
-                  <a href={(project.latestDeployment as any).deployUrl} target="_blank" rel="noreferrer" className="btn btn-primary btn-sm mt-2">
+                {n.id === 10 && stage === 10 && (activeDeployment as any)?.deployUrl && (
+                  <a href={(activeDeployment as any).deployUrl} target="_blank" rel="noreferrer" className="btn btn-primary btn-sm mt-2">
                     <ExternalLink size={12} /> Open URL
                   </a>
                 )}

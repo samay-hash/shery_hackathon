@@ -1,92 +1,121 @@
-# 🚀 DeployX — DevOps Deployment Panel
+# 🚀 DeployX — One-Click AI Deployment Platform
 
-> **A One-Click Deployment Platform — Mini Vercel Clone**  
-> Built for Sherians Hackathon 2026
+![DeployX Banner](https://img.shields.io/badge/DeployX-AI--Powered--PaaS-00E5FF?style=for-the-badge&logo=rocket)
+![License](https://img.shields.io/badge/License-MIT-green?style=for-the-badge)
+![Status](https://img.shields.io/badge/Status-Hackathon--Ready-orange?style=for-the-badge)
 
-![React](https://img.shields.io/badge/React-19-61DAFB?style=flat&logo=react)
-![Node.js](https://img.shields.io/badge/Node.js-25-339933?style=flat&logo=nodedotjs)
-![MongoDB](https://img.shields.io/badge/MongoDB-7-47A248?style=flat&logo=mongodb)
-![Docker](https://img.shields.io/badge/Docker-29-2496ED?style=flat&logo=docker)
+**DeployX** is a revolutionary AI-powered Platform-as-a-Service (PaaS) that allows developers to deploy their full-stack applications directly from GitHub with zero configuration. It features an industry-first **AI Self-Healing Pipeline** that automatically detects, diagnoses, and patches deployment errors in real-time.
 
-## ✨ Features
+---
 
-- **🔐 GitHub OAuth** — Seamless login with GitHub
-- **📦 Repo Import** — Browse and select any repository
-- **🚀 One-Click Deploy** — Auto-detect framework and deploy
-- **📺 Live Log Streaming** — Real-time terminal with WebSocket
-- **🔄 Instant Rollback** — Visual timeline with one-click rollback
-- **🔑 Environment Variables** — Manage secrets securely
-- **🐳 Docker Builds** — Isolated, reproducible deployments
-- **🔔 Auto Deploy** — GitHub webhook integration (CI/CD)
-- **🎨 Premium UI** — Dark theme, glassmorphism, animations
+## ✨ Key Features
 
-## 🛠️ Tech Stack
+- ⚡ **One-Click Deploy**: Connect your GitHub repo and let DeployX handle the rest.
+- 🧠 **AI Self-Healing**: Powered by **Gemini 2.0** and **Groq (Llama 3.3)** to auto-fix build errors.
+- 📦 **Dynamic Containerization**: Automatically generates Dockerfiles and builds optimized images on-the-fly.
+- 📡 **Real-time Log Streaming**: Watch your deployment progress live via WebSockets.
+- 🔗 **Smart Proxy Routing**: Dynamic routing via `nip.io` with instant SSL-ready subdomains.
+- 🛠️ **Monorepo Support**: Deploy specific sub-directories (Frontend/Backend) from a single repo.
 
-| Layer | Tech |
-|-------|------|
-| Frontend | React 19 + TypeScript + Vite |
-| Styling | Vanilla CSS + Framer Motion |
-| State | Zustand |
-| Backend | Node.js + Express |
-| Database | MongoDB + Mongoose |
-| Real-time | Socket.IO |
-| Auth | GitHub OAuth 2.0 + JWT |
-| Containers | Docker (dockerode) |
+---
 
-## 🚀 Quick Start
+## 🏗️ System Architecture
+
+DeployX is built as a robust, distributed system composed of specialized micro-services:
+
+```mermaid
+graph TD
+    User((User)) -->|Connect GitHub| Frontend[Frontend - React/Vite]
+    Frontend -->|API Requests| Backend[Backend - Express/Node]
+    Backend -->|Enqueue Job| Redis[(Redis Queue)]
+    Redis -->|Process Job| Worker[Deploy Worker]
+    
+    subgraph "Deployment Node"
+        Worker -->|Clone Repo| Git[Git Service]
+        Worker -->|Analyze Code| AIScanner[Gemini AI Scanner]
+        AIScanner -->|Generate Config| Docker[Dockerode Engine]
+        Docker -->|Build Image| Container[User App Container]
+    end
+    
+    subgraph "Routing Layer"
+        Proxy[Dynamic Proxy] -->|Route Traffic| Container
+        User -->|Visit URL| Proxy
+    end
+    
+    Worker -->|Fail/Success| AISelfHealing[AI Diagnosis & Patching]
+    AISelfHealing -->|Retry| Redis
+```
+
+---
+
+## 📂 Component Breakdown
+
+### 1. 🖥️ Frontend (React + Framer Motion)
+A premium, dark-themed dashboard that visualizes the "Network Topology" of your deployments.
+- **Hook-based state management**: Real-time updates via custom hooks.
+- **Interactive Pipeline**: Visual step-by-step progress tracker.
+
+### 2. ⚙️ Backend (Node.js + Express)
+The brain of the operation, handling authentication, project metadata, and project orchestration.
+- **RESTful API**: Secure endpoints for project management.
+- **Socket.IO**: Bi-directional communication for live log streaming.
+
+### 3. 👷 Worker Service (BullMQ)
+The heavy lifter that handles the actual deployment lifecycle.
+- **Framework Detection**: Identifies if your app is React, Next.js, Node, or Static.
+- **Dockerode Integration**: Communicates with the Host Docker Socket to manage containers.
+
+### 4. 🧠 AI Engine (Gemini & Groq)
+The unique "Self-Healing" layer.
+- **Log Analysis**: Scans build logs for `npm` errors, missing dependencies, or config issues.
+- **Auto-Patching**: Writes code fixes directly to the temporary build context and retries the deployment.
+
+### 5. 🛡️ Dynamic Proxy (Http-Proxy)
+A custom-built routing engine that maps subdomains (e.g., `myapp-abc.100.x.x.nip.io`) to internal Docker containers dynamically.
+
+---
+
+## 🚀 Getting Started
 
 ### Prerequisites
-- Node.js 18+
-- MongoDB (local or Atlas)
-- Docker (optional, for real builds)
-- GitHub OAuth App credentials
+- Node.js v18+
+- Docker Engine installed and running
+- Redis Server
+- MongoDB
 
-### 1. Clone & Install
-```bash
-git clone https://github.com/your-repo/deployx.git
-cd deployx
+### Installation
+1. Clone the repository:
+   ```bash
+   git clone https://github.com/samay-hash/shery_hackathon.git
+   ```
+2. Install dependencies for both folders:
+   ```bash
+   cd frontend && npm install
+   cd ../backend && npm install
+   ```
+3. Set up your `.env` in the `backend` folder:
+   ```env
+   MONGODB_URI=your_mongo_uri
+   GEMINI_API_KEY=your_gemini_key
+   GROQ_API_KEY=your_groq_key
+   GITHUB_CLIENT_ID=...
+   GITHUB_CLIENT_SECRET=...
+   ```
+4. Start the engine:
+   ```bash
+   docker-compose up --build
+   ```
 
-# Install backend
-cd backend && npm install
+---
 
-# Install frontend
-cd ../frontend && npm install
-```
+## 🛡️ Hackathon Goals Reached
+- [x] Full-stack containerization from root or sub-dir.
+- [x] Real-time WebSocket log feedback.
+- [x] AI-powered error diagnosis and fallback (Groq).
+- [x] Dynamic proxy with nip.io support.
 
-### 2. Configure Environment
-```bash
-# Backend
-cp backend/.env.example backend/.env
-# Edit backend/.env with your GitHub OAuth credentials
-```
+---
 
-### 3. Run Development
-```bash
-# Terminal 1: Backend
-cd backend && npm run dev
-
-# Terminal 2: Frontend
-cd frontend && npm run dev
-```
-
-### 4. Open in Browser
-- Frontend: http://localhost:5173
-- Backend API: http://localhost:3001/api/health
-
-## 📸 Screenshots
-
-Coming soon...
-
-## 👥 Team
-
-Built with ❤️ for Sherians Hackathon 2026
-
-
-
-
-
-Client ID
-Ov23libTBr5ygwkjmrAF
-
-Client secrets
-c28caa3d8fc712a26e4d6b67598a1fc67badd85e
+<p align="center">
+  Built with ❤️ for the <b>Sherians Hackathon</b> by <a href="https://github.com/samay-hash">@samay-hash</a>
+</p>

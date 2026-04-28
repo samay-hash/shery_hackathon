@@ -15,6 +15,8 @@ export default function RepoSelector({ onClose }: RepoSelectorProps) {
   const [creating, setCreating] = useState(false);
   const [selectedRepo, setSelectedRepo] = useState<GithubRepo | null>(null);
   const [projectName, setProjectName] = useState('');
+  const [rootDir, setRootDir] = useState('');
+  const [showAdvanced, setShowAdvanced] = useState(false);
 
   useEffect(() => {
     const load = async () => {
@@ -34,7 +36,8 @@ export default function RepoSelector({ onClose }: RepoSelectorProps) {
     setCreating(true);
     try {
       const name = projectName.trim() || selectedRepo.name;
-      await createProject(selectedRepo.html_url, name, selectedRepo.default_branch);
+      const root = rootDir.trim() || '.';
+      await createProject(selectedRepo.html_url, name, selectedRepo.default_branch, root);
       onClose();
     } catch {
       // handled
@@ -163,6 +166,32 @@ export default function RepoSelector({ onClose }: RepoSelectorProps) {
                   <span className="mono">{selectedRepo.default_branch}</span>
                 </div>
               </div>
+
+              <div className="form-group">
+                <button 
+                  type="button" 
+                  onClick={() => setShowAdvanced(!showAdvanced)}
+                  className="btn btn-secondary btn-sm"
+                  style={{ width: '100%', marginTop: '10px' }}
+                >
+                  {showAdvanced ? 'Hide Advanced Options' : 'Show Advanced Options'}
+                </button>
+              </div>
+
+              {showAdvanced && (
+                <div className="form-group" style={{ marginTop: '10px' }}>
+                  <label>Root Directory</label>
+                  <input
+                    className="input"
+                    value={rootDir}
+                    onChange={(e) => setRootDir(e.target.value)}
+                    placeholder="e.g., frontend or backend (default: .)"
+                  />
+                  <small style={{ color: 'var(--text-muted)', fontSize: '11px', marginTop: '4px', display: 'block' }}>
+                    If your project is a monorepo, specify the sub-directory here.
+                  </small>
+                </div>
+              )}
             </div>
 
             <div className="modal-actions">

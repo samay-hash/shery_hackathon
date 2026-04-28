@@ -40,7 +40,16 @@ export const authAPI = {
 export const projectAPI = {
   list: () => api.get('/projects'),
   get: (id: string) => api.get(`/projects/${id}`),
-  create: (data: { repoUrl: string; name: string; branch?: string; rootDir?: string }) => api.post('/projects', data),
+  create: (data: { 
+    repoUrl: string; 
+    name: string; 
+    branch?: string; 
+    rootDir?: string;
+    buildCommand?: string;
+    startCommand?: string;
+    outputDir?: string;
+    envVars?: Record<string, string>;
+  }) => api.post('/projects', data),
   update: (id: string, data: Record<string, unknown>) => api.put(`/projects/${id}`, data),
   delete: (id: string) => api.delete(`/projects/${id}`),
   updateEnv: (id: string, envVars: Record<string, string>) => api.put(`/projects/${id}/env`, { envVars }),

@@ -8,14 +8,21 @@ interface RepoSelectorProps {
   onClose: () => void;
 }
 
-export default function RepoSelector({ onClose }: RepoSelectorProps) {
+export default function RepoSelector({ onClose, initialType = 'frontend' }: { onClose: () => void, initialType?: 'frontend' | 'backend' }) {
   const { githubRepos, fetchGithubRepos, createProject } = useProjects();
   const [search, setSearch] = useState('');
   const [loading, setLoading] = useState(true);
   const [creating, setCreating] = useState(false);
   const [selectedRepo, setSelectedRepo] = useState<GithubRepo | null>(null);
+  
+  // Form State
+  const [deployType, setDeployType] = useState<'frontend' | 'backend'>(initialType);
   const [projectName, setProjectName] = useState('');
   const [rootDir, setRootDir] = useState('');
+  const [buildCommand, setBuildCommand] = useState('');
+  const [startCommand, setStartCommand] = useState('');
+  const [outputDir, setOutputDir] = useState('');
+  const [envText, setEnvText] = useState('');
   const [showAdvanced, setShowAdvanced] = useState(false);
 
   useEffect(() => {
@@ -26,18 +33,53 @@ export default function RepoSelector({ onClose }: RepoSelectorProps) {
     load();
   }, [fetchGithubRepos]);
 
+  useEffect(() => {
+    if (selectedRepo) {
+      if (deployType === 'backend') {
+        setBuildCommand('npm install');
+        setStartCommand('npm start');
+        setOutputDir('.');
+      } else {
+        setBuildCommand('npm run build');
+        setStartCommand('');
+        setOutputDir('dist');
+      }
+    }
+  }, [deployType, selectedRepo]);
+
   const filtered = githubRepos.filter((r) =>
     r.name.toLowerCase().includes(search.toLowerCase()) ||
     r.full_name.toLowerCase().includes(search.toLowerCase())
   );
+
+  const parseEnv = (text: string): Record<string, string> => {
+    const lines = text.split('\n');
+    const env: Record<string, string> = {};
+    lines.forEach(line => {
+      const [key, ...val] = line.split('=');
+      if (key && key.trim()) {
+        env[key.trim()] = val.join('=').trim();
+      }
+    });
+    return env;
+  };
 
   const handleImport = async () => {
     if (!selectedRepo) return;
     setCreating(true);
     try {
       const name = projectName.trim() || selectedRepo.name;
-      const root = rootDir.trim() || '.';
-      await createProject(selectedRepo.html_url, name, selectedRepo.default_branch, root);
+      const options = {
+        repoUrl: selectedRepo.html_url,
+        name,
+        branch: selectedRepo.default_branch,
+        rootDir: rootDir.trim() || '.',
+        buildCommand: buildCommand.trim(),
+        startCommand: startCommand.trim(),
+        outputDir: outputDir.trim(),
+        envVars: parseEnv(envText)
+      };
+      await createProject(options);
       onClose();
     } catch {
       // handled
@@ -149,48 +191,111 @@ export default function RepoSelector({ onClose }: RepoSelectorProps) {
               </div>
             </div>
 
+            <div className="deploy-type-selector">
+              <button 
+                className={`type-btn ${deployType === 'frontend' ? 'active' : ''}`}
+                onClick={() => setDeployType('frontend')}
+              >
+                Frontend
+              </button>
+              <button 
+                className={`type-btn ${deployType === 'backend' ? 'active' : ''}`}
+                onClick={() => setDeployType('backend')}
+              >
+                Backend
+              </button>
+            </div>
+
             <div className="config-form">
-              <div className="form-group">
-                <label>Project Name</label>
-                <input
-                  className="input"
-                  value={projectName}
-                  onChange={(e) => setProjectName(e.target.value)}
-                  placeholder="my-awesome-app"
-                />
-              </div>
-              <div className="form-group">
-                <label>Branch</label>
-                <div className="branch-display">
-                  <GitBranch size={14} />
-                  <span className="mono">{selectedRepo.default_branch}</span>
+              <div className="form-row">
+                <div className="form-group">
+                  <label>Project Name</label>
+                  <input
+                    className="input"
+                    value={projectName}
+                    onChange={(e) => setProjectName(e.target.value)}
+                    placeholder="my-awesome-app"
+                  />
                 </div>
+                <div className="form-group">
+                  <label>Branch</label>
+                  <div className="branch-display">
+                    <GitBranch size={14} />
+                    <span className="mono">{selectedRepo.default_branch}</span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="form-group">
+                <label>Environment Variables (e.g. PORT=3000)</label>
+                <textarea
+                  className="input mono"
+                  value={envText}
+                  onChange={(e) => setEnvText(e.target.value)}
+                  placeholder="KEY=VALUE&#10;DATABASE_URL=mongodb://..."
+                  rows={4}
+                  style={{ resize: 'vertical', fontSize: '12px' }}
+                />
               </div>
 
               <div className="form-group">
                 <button 
                   type="button" 
                   onClick={() => setShowAdvanced(!showAdvanced)}
-                  className="btn btn-secondary btn-sm"
-                  style={{ width: '100%', marginTop: '10px' }}
+                  className="btn btn-ghost btn-sm"
+                  style={{ width: '100%', border: '1px border rgba(255,255,255,0.1)' }}
                 >
                   {showAdvanced ? 'Hide Advanced Options' : 'Show Advanced Options'}
                 </button>
               </div>
 
               {showAdvanced && (
-                <div className="form-group" style={{ marginTop: '10px' }}>
-                  <label>Root Directory</label>
-                  <input
-                    className="input"
-                    value={rootDir}
-                    onChange={(e) => setRootDir(e.target.value)}
-                    placeholder="e.g., frontend or backend (default: .)"
-                  />
-                  <small style={{ color: 'var(--text-muted)', fontSize: '11px', marginTop: '4px', display: 'block' }}>
-                    If your project is a monorepo, specify the sub-directory here.
-                  </small>
-                </div>
+                <motion.div 
+                  className="advanced-options"
+                  initial={{ height: 0, opacity: 0 }}
+                  animate={{ height: 'auto', opacity: 1 }}
+                >
+                  <div className="form-group">
+                    <label>Root Directory</label>
+                    <input
+                      className="input"
+                      value={rootDir}
+                      onChange={(e) => setRootDir(e.target.value)}
+                      placeholder="e.g., frontend or backend (default: .)"
+                    />
+                  </div>
+                  <div className="form-row">
+                    <div className="form-group">
+                      <label>Build Command</label>
+                      <input
+                        className="input"
+                        value={buildCommand}
+                        onChange={(e) => setBuildCommand(e.target.value)}
+                        placeholder="npm run build"
+                      />
+                    </div>
+                    <div className="form-group">
+                      <label>Output Directory</label>
+                      <input
+                        className="input"
+                        value={outputDir}
+                        onChange={(e) => setOutputDir(e.target.value)}
+                        placeholder="dist"
+                      />
+                    </div>
+                  </div>
+                  {deployType === 'backend' && (
+                    <div className="form-group">
+                      <label>Start Command</label>
+                      <input
+                        className="input"
+                        value={startCommand}
+                        onChange={(e) => setStartCommand(e.target.value)}
+                        placeholder="node index.js"
+                      />
+                    </div>
+                  )}
+                </motion.div>
               )}
             </div>
 
@@ -199,12 +304,12 @@ export default function RepoSelector({ onClose }: RepoSelectorProps) {
                 Back
               </button>
               <button
-                className="btn btn-primary"
+                className="btn btn-primary glow"
                 onClick={handleImport}
                 disabled={creating}
               >
-                {creating ? <Loader2 size={16} className="animate-spin" /> : null}
-                {creating ? 'Importing...' : 'Import & Deploy'}
+                {creating ? <Loader2 size={16} className="animate-spin" /> : <Play size={16} fill="currentColor" />}
+                {creating ? 'Initializing Node...' : `Deploy ${deployType === 'frontend' ? 'Frontend' : 'Backend'}`}
               </button>
             </div>
           </div>

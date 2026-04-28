@@ -123,6 +123,7 @@ export default function Dashboard() {
   const { triggerDeploy } = useDeployment();
   const [searchQuery, setSearchQuery] = useState('');
   const [showRepoSelector, setShowRepoSelector] = useState(false);
+  const [repoSelectorType, setRepoSelectorType] = useState<'frontend' | 'backend'>('frontend');
 
   useEffect(() => {
     fetchProjects();
@@ -148,10 +149,16 @@ export default function Dashboard() {
           </h1>
           <p className="dashboard-subtitle">Real-time status of all your connected deployment nodes</p>
         </div>
-        <button className="btn btn-primary btn-lg glow" onClick={() => setShowRepoSelector(true)}>
-          <Plus size={18} />
-          Create Node
-        </button>
+        <div style={{ display: 'flex', gap: '12px' }}>
+          <button className="btn btn-secondary glow" onClick={() => { setRepoSelectorType('frontend'); setShowRepoSelector(true); }}>
+            <Plus size={18} />
+            Deploy Frontend
+          </button>
+          <button className="btn btn-primary glow" onClick={() => { setRepoSelectorType('backend'); setShowRepoSelector(true); }}>
+            <Plus size={18} />
+            Deploy Backend
+          </button>
+        </div>
       </div>
 
       {/* Top Metrics Row */}
@@ -227,7 +234,7 @@ export default function Dashboard() {
       {/* Repo Selector Modal */}
       <AnimatePresence>
         {showRepoSelector && (
-          <RepoSelector onClose={() => setShowRepoSelector(false)} />
+          <RepoSelector onClose={() => setShowRepoSelector(false)} initialType={repoSelectorType} />
         )}
       </AnimatePresence>
     </div>

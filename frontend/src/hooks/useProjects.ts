@@ -35,10 +35,19 @@ export function useProjects() {
     }
   }, [setSelectedProject]);
 
-  const createProject = useCallback(async (repoUrl: string, name: string, branch?: string, rootDir?: string) => {
+  const createProject = useCallback(async (options: {
+    repoUrl: string;
+    name: string;
+    branch?: string;
+    rootDir?: string;
+    buildCommand?: string;
+    startCommand?: string;
+    outputDir?: string;
+    envVars?: Record<string, string>;
+  }) => {
     setLoading(true);
     try {
-      const { data } = await projectAPI.create({ repoUrl, name, branch, rootDir });
+      const { data } = await projectAPI.create(options);
       addProject(data.project);
       return data.project as Project;
     } catch (err: unknown) {

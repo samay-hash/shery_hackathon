@@ -32,7 +32,16 @@ router.get('/', auth, async (req, res) => {
 // POST /api/projects — Create new project
 router.post('/', auth, async (req, res) => {
   try {
-    const { repoUrl, name, branch = 'main', rootDir = '.' } = req.body;
+    const { 
+      repoUrl, 
+      name, 
+      branch = 'main', 
+      rootDir = '.',
+      buildCommand = '',
+      startCommand = '',
+      outputDir = 'dist',
+      envVars = {}
+    } = req.body;
 
     if (!repoUrl || !name) {
       return res.status(400).json({ error: 'repoUrl and name are required' });
@@ -61,6 +70,10 @@ router.post('/', auth, async (req, res) => {
       framework,
       subdomain,
       rootDir,
+      buildCommand,
+      startCommand,
+      outputDir,
+      envVars
     });
 
     // Add to user's projects

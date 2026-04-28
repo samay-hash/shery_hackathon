@@ -34,9 +34,12 @@ export default function Landing() {
         <p className="mwx-hero-desc">
           DeployX connects your GitHub directly to your EC2 servers. Connect, analyze, build, and publish applications automatically — all in one secure workspace.
         </p>
-        <div>
+        <div className="hero-actions" style={{ display: 'flex', gap: '16px', justifyContent: 'center' }}>
           <button className="mwx-btn-primary" onClick={login}>
-            Start Free Trial <ArrowRight size={14} />
+            <Globe size={16} /> Deploy Frontend
+          </button>
+          <button className="mwx-btn-secondary" onClick={login} style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '12px 24px', borderRadius: '8px', border: '1px solid var(--mw-gold)', color: 'var(--mw-gold)', cursor: 'pointer', background: 'transparent' }}>
+            <Server size={16} /> Deploy Backend
           </button>
         </div>
       </section>
